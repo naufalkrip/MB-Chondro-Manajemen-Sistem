@@ -10,13 +10,16 @@ import {
   statusKeHuruf,
 } from "../utils/format";
 import logoUrl from "../aset/logo.png";
+import poppinsRegular from "../aset/fonts/Poppins-Regular.ttf";
+import poppinsSemiBold from "../aset/fonts/Poppins-SemiBold.ttf";
+import poppinsBold from "../aset/fonts/Poppins-Bold.ttf";
 
 // ============================================================
 // DESIGN SYSTEM PDF MB CHONDRO — "OFFICIAL ORGANIZATION REPORT"
 // ============================================================
 // Satu template global untuk SEMUA jenis laporan:
 //   - Kertas F4 / Folio 215.9 × 330.2 mm (portrait / landscape otomatis)
-//   - Font: Helvetica (Arial-equivalent), satu keluarga font untuk seluruh dokumen
+//   - Font: Poppins (di-embed saat runtime; fallback Helvetica bila gagal), satu keluarga untuk seluruh dokumen
 //   - Kop resmi: logo + MB CHONDRO + SISTEM MANAJEMEN ORGANISASI
 //   - Judul laporan, periode, tanggal cetak, summary, tabel, dan footer konsisten
 //   - Header tabel diulang otomatis pada setiap halaman lanjutan
@@ -31,7 +34,49 @@ const WHITE: [number, number, number] = [255, 255, 255];
 const LINE: [number, number, number] = [226, 232, 240]; // light gray — border
 const ROW_ALT: [number, number, number] = [248, 250, 252]; // baris berselang
 
-const FONT = "helvetica"; // Arial-equivalent (metrik identik dengan Arial)
+const FONT_FALLBACK = "helvetica"; // fallback bila Poppins gagal dimuat
+let fontFamily = FONT_FALLBACK;
+let fontsReady = false;
+
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Muat & embed Poppins (Regular/SemiBold/Bold) ke jsPDF — dijalankan sekali. */
+async function ensureFonts(doc: jsPDF) {
+  if (fontsReady) {
+    doc.setFont(fontFamily, "normal");
+    return;
+  }
+  try {
+    const variants: { src: string; name: string; style: "normal" | "semibold" | "bold" }[] = [
+      { src: poppinsRegular, name: "Poppins-Regular.ttf", style: "normal" },
+      { src: poppinsSemiBold, name: "Poppins-SemiBold.ttf", style: "semibold" },
+      { src: poppinsBold, name: "Poppins-Bold.ttf", style: "bold" },
+    ];
+    for (const v of variants) {
+      const buf = await (await fetch(v.src)).arrayBuffer();
+      doc.addFileToVFS(v.name, arrayBufferToBase64(buf));
+      doc.addFont(v.name, "Poppins", v.style);
+    }
+    fontFamily = "Poppins";
+  } catch {
+    fontFamily = FONT_FALLBACK;
+  }
+  fontsReady = true;
+  doc.setFont(fontFamily, "normal");
+}
+
+/** Style "tebal" yang tersedia: SemiBold untuk Poppins, Bold untuk fallback. */
+function semiboldStyle(): string {
+  return fontFamily === "Poppins" ? "semibold" : "bold";
+}
 
 // F4 / Folio
 const F4: [number, number] = [215.9, 330.2];
@@ -39,9 +84,9 @@ const F4: [number, number] = [215.9, 330.2];
 const MARGIN = 16;
 const MARGIN_BOTTOM = 16;
 
-const FONT_ORG = 20; // nama organisasi pada kop
+const FONT_ORG = 18; // nama organisasi pada kop
 const FONT_ORG_SUB = 10; // tagline organisasi
-const FONT_TITLE = 19; // judul laporan
+const FONT_TITLE = 20; // judul laporan (elemen paling menonjol di kop)
 const FONT_SUBTITLE = 10.5; // deskripsi laporan
 const FONT_META = 9.5; // periode & tanggal cetak
 const FONT_TABLE = 9.5; // isi & header tabel
@@ -153,6 +198,7 @@ function drawDoubleLine(doc: jsPDF, y: number) {
 
 /** Header halaman pertama: logo + identitas organisasi + judul + periode + tanggal cetak */
 async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, periode: string): Promise<number> {
+  await ensureFonts(doc);
   const w = doc.internal.pageSize.getWidth();
   const usable = w - MARGIN * 2;
   addTopBand(doc);
@@ -171,12 +217,12 @@ async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, perio
     }
   }
 
-  doc.setFont(FONT, "bold");
+  doc.setFont(fontFamily, semiboldStyle());
   doc.setFontSize(FONT_ORG);
   doc.setTextColor(...BURGUNDY);
   doc.text("MB CHONDRO", textX, 16.5);
 
-  doc.setFont(FONT, "bold");
+  doc.setFont(fontFamily, semiboldStyle());
   doc.setFontSize(FONT_ORG_SUB);
   doc.setTextColor(...NAVY);
   doc.text("SISTEM MANAJEMEN ORGANISASI", textX, 22.5);
@@ -184,7 +230,7 @@ async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, perio
   // Judul laporan — ukuran menyesuaikan agar tidak bertabrakan dengan periode
   const title = `LAPORAN ${judul.toUpperCase()}`;
   let titleSize = FONT_TITLE;
-  doc.setFont(FONT, "bold");
+  doc.setFont(fontFamily, "bold");
   doc.setFontSize(titleSize);
   while (titleSize > 14 && doc.getTextWidth(title) > usable * 0.58) {
     titleSize -= 0.5;
@@ -193,7 +239,7 @@ async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, perio
   doc.setTextColor(...NAVY);
   doc.text(title, MARGIN, 31.5);
 
-  doc.setFont(FONT, "normal");
+  doc.setFont(fontFamily, "normal");
   doc.setFontSize(FONT_SUBTITLE);
   doc.setTextColor(...MUTED);
   doc.text(subtitle, MARGIN, 37.5);
@@ -211,7 +257,7 @@ async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, perio
 /** Header halaman lanjutan: ringkas, identitas singkat + garis pemisah */
 function drawCompactHeader(doc: jsPDF) {
   addTopBand(doc);
-  doc.setFont(FONT, "bold");
+  doc.setFont(fontFamily, semiboldStyle());
   doc.setFontSize(9);
   doc.setTextColor(...BURGUNDY);
   doc.text("MB CHONDRO — SISTEM MANAJEMEN ORGANISASI", MARGIN, 11.5);
@@ -225,7 +271,7 @@ function drawPageFooter(doc: jsPDF, pageNumber: number, totalPages: number) {
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.25);
   doc.line(MARGIN, h - MARGIN_BOTTOM, w - MARGIN, h - MARGIN_BOTTOM);
-  doc.setFont(FONT, "normal");
+  doc.setFont(fontFamily, "normal");
   doc.setFontSize(FONT_FOOTER);
   doc.setTextColor(...MUTED);
   doc.text("MB CHONDRO — Sistem Manajemen Organisasi", MARGIN, h - MARGIN_BOTTOM + 5.5);
@@ -240,7 +286,9 @@ export interface SummaryItem {
 }
 
 /**
- * Ringkasan berupa grid rapi tanpa kotak/card: label kecil di atas, nilai tebal di bawah.
+ * Ringkasan berupa grid statistik clean: label kecil di atas, nilai tebal di bawah.
+ * Ada latar sangat terang + border abu tipis + aksen burgundy tipis di sisi kiri,
+ * sehingga tampak seperti kartu ringkas tanpa menghilangkan kesan formal.
  * Semua kolom sama lebar sehingga benar-benar sejajar.
  */
 function drawSummary(doc: jsPDF, items: SummaryItem[], startY: number): number {
@@ -248,30 +296,51 @@ function drawSummary(doc: jsPDF, items: SummaryItem[], startY: number): number {
   const usable = w - MARGIN * 2;
   const minColW = 38;
   const perRow = Math.max(1, Math.min(items.length, Math.floor(usable / minColW)));
-  const cellW = usable / perRow;
   const rows = Math.ceil(items.length / perRow);
-  const rowH = 6.6;
-  const labelSize = 8.5;
-  const valueSize = 11;
+
+  const padTop = 3.4;
+  const padBottom = 3.4;
+  const lineH = 5.9;
+  const labelSize = 8;
+  const valueSize = 11.5;
+
+  const accentW = 1.5;
+  const padLeft = 4.5;
+  const padRight = 4.5;
+  const boxX = MARGIN;
+  const boxY = startY + 1;
+  const boxW = usable;
+  const boxH = padTop + rows * lineH + padBottom;
+  const cellW = (boxW - accentW - padLeft - padRight) / perRow;
+
+  // Latar sangat terang + border tipis
+  doc.setFillColor(...ROW_ALT);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.3);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "FD");
+
+  // Aksen burgundy tipis di tepi kiri (warna identitas MB CHONDRO)
+  doc.setFillColor(...BURGUNDY);
+  doc.roundedRect(boxX, boxY + 2, accentW, boxH - 4, 0.75, 0.75, "F");
 
   items.forEach((item, i) => {
     const col = i % perRow;
     const row = Math.floor(i / perRow);
-    const x = MARGIN + col * cellW;
-    const y = startY + row * rowH;
+    const x = boxX + accentW + padLeft + col * cellW;
+    const labelY = boxY + padTop + row * lineH;
 
-    doc.setFont(FONT, "normal");
+    doc.setFont(fontFamily, "normal");
     doc.setFontSize(labelSize);
     doc.setTextColor(...MUTED);
-    doc.text(item.label, x, y);
+    doc.text(item.label, x, labelY);
 
-    doc.setFont(FONT, "bold");
+    doc.setFont(fontFamily, "bold");
     doc.setFontSize(valueSize);
     doc.setTextColor(...NAVY);
-    doc.text(item.value, x, y + 4.6);
+    doc.text(item.value, x, labelY + 4.3);
   });
 
-  return startY + rows * rowH + 4;
+  return boxY + boxH + 4;
 }
 
 // ============================================================
@@ -286,6 +355,8 @@ interface TableOptions {
   columnAligns?: Align[];
   columnWidths?: number[];
   cellPadding?: number | { top: number; right: number; bottom: number; left: number };
+  minCellHeight?: number;
+  columnFontSizes?: number[];
 }
 
 interface FooterTableOptions extends TableOptions {
@@ -306,14 +377,18 @@ interface CreatePdfOptions extends TableOptions {
 function buildColumnStyles(
   columnAligns: Align[] | undefined,
   columnWidths: number[] | undefined,
-  scale: number
-): Record<number, { halign?: Align; cellWidth?: number }> {
-  const styles: Record<number, { halign?: Align; cellWidth?: number }> = {};
+  scale: number,
+  columnFontSizes?: number[]
+): Record<number, { halign?: Align; cellWidth?: number; fontSize?: number }> {
+  const styles: Record<number, { halign?: Align; cellWidth?: number; fontSize?: number }> = {};
   columnAligns?.forEach((align, i) => {
     if (align) styles[i] = { ...(styles[i] ?? {}), halign: align };
   });
   columnWidths?.forEach((width, i) => {
     if (width) styles[i] = { ...(styles[i] ?? {}), cellWidth: width * scale };
+  });
+  columnFontSizes?.forEach((fontSize, i) => {
+    if (fontSize) styles[i] = { ...(styles[i] ?? {}), fontSize };
   });
   return styles;
 }
@@ -322,6 +397,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
   const orientation = opts.orientation ?? "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: F4 });
   const fontSize = opts.tableFontSize ?? FONT_TABLE;
+  await ensureFonts(doc);
 
   // Lebar kolom disesuaikan agar tabel mengisi lebar kertas secara proporsional
   const usableWidth = doc.internal.pageSize.getWidth() - MARGIN * 2;
@@ -331,7 +407,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
   let startY = await drawFullHeader(doc, judul, subtitle, periode);
 
   const drawMetaLine = (text: string) => {
-    doc.setFont(FONT, "normal");
+    doc.setFont(fontFamily, "normal");
     doc.setFontSize(FONT_META);
     doc.setTextColor(...SLATE);
     doc.text(text, MARGIN, startY, { maxWidth: usableWidth });
@@ -360,7 +436,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
       body: table.rows,
       margin: { left: MARGIN, right: MARGIN, top: 20, bottom: MARGIN_BOTTOM },
       styles: {
-        font: FONT,
+        font: fontFamily,
         fontSize: tableFont,
         cellPadding: table.cellPadding ?? { top: 2.2, right: 2.5, bottom: 2.2, left: 2.5 },
         textColor: BODY,
@@ -368,11 +444,12 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
         lineWidth: 0.15,
         overflow: "linebreak",
         valign: "middle",
+        minCellHeight: table.minCellHeight,
       },
       headStyles: {
         fillColor: BURGUNDY,
         textColor: WHITE,
-        fontStyle: "bold",
+        fontStyle: semiboldStyle() as "bold" | "italic" | "normal" | "bolditalic",
         fontSize: tableFont,
         halign: "center",
         cellPadding: table.cellPadding
@@ -382,7 +459,8 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
           : { top: 2.4, right: 2.5, bottom: 2.4, left: 2.5 },
       },
       alternateRowStyles: { fillColor: ROW_ALT },
-      columnStyles: buildColumnStyles(table.columnAligns, table.columnWidths, tableScale),
+      columnStyles: buildColumnStyles(table.columnAligns, table.columnWidths, tableScale, table.columnFontSizes),
+      rowPageBreak: "avoid",
       didDrawPage: (data) => {
         if (data.pageNumber > 1) drawCompactHeader(doc);
       },
@@ -404,7 +482,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
       doc.addPage();
       y = 23;
     }
-    doc.setFont(FONT, "bold");
+    doc.setFont(fontFamily, "bold");
     doc.setFontSize(10.5);
     doc.setTextColor(...NAVY);
     doc.text(ft.title, MARGIN, y);
@@ -561,11 +639,24 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
   const countDate = Math.max(kolomKunci.length, 1);
 
   // Matriks berisi kolom tanggal → otomatis pakai Landscape F4 bila perlu
-  const fixedW = 10 + 46 + 24;
+  const fixedW = 8 + 52 + 20;
   const portraitUsable = 215.9 - MARGIN * 2;
   const portraitFits = portraitUsable - fixedW >= countDate * 9.5;
   const usable = (portraitFits ? 215.9 : 330.2) - MARGIN * 2;
   const dateColW = (usable - fixedW) / countDate;
+  // Kolom tanggal: font header/isi diperkecil secukupnya agar kata terpanjang pada
+  // header kegiatan muat tanpa terpotong aneh di tengah kata (mis. "kenda/l/arejo").
+  // Kolom No/Nama/Divisi tetap memakai ukuran normal agar nama anggota tetap terbaca.
+  const longestWordLen = Math.max(
+    1,
+    ...kolomHeader
+      .flatMap((h) => h.split("\n"))
+      .map((s) => s.trim().split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0))
+  );
+  const charWPerPt = 0.19; // mm per karakter per pt (kalibrasi dari Poppins @9.5pt)
+  const dateTextSpace = Math.max(dateColW - 4, 1); // lebar kolom dikurangi padding kiri+kanan
+  const wordFitFont = dateTextSpace / (longestWordLen * charWPerPt);
+  const dateFontSize = Math.min(FONT_TABLE, Math.max(6.5, wordFitFont));
   const tableFontSize = Math.min(FONT_TABLE, Math.max(6.5, dateColW * 0.95));
 
   await createPdf("RIWAYAT ABSENSI", "Rekap kehadiran anggota per kegiatan + tanggal", periode, {
@@ -581,11 +672,12 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
       { label: "Total Alpa", value: `${stat.alpa}` },
       { label: "Persentase Kehadiran", value: `${stat.persentase}%` },
     ],
-    legend: "Legenda: • = Hadir, I = Izin, S = Sakit, C = Cuti, A = Alpa, * = Tidak ada absensi",
     tableFontSize,
     cellPadding: { top: 2.6, right: 2, bottom: 2.6, left: 2 },
+    minCellHeight: 8.5,
+    columnFontSizes: [FONT_TABLE, FONT_TABLE, FONT_TABLE, ...kolomKunci.map(() => dateFontSize)],
     fileName: `Laporan-rekap-absensi-${new Date().toISOString().slice(0, 10)}.pdf`,
-    columnWidths: [10, 46, 24, ...kolomKunci.map(() => dateColW)],
+    columnWidths: [8, 52, 20, ...kolomKunci.map(() => dateColW)],
     columnAligns: ["center", "left", "left", ...kolomKunci.map<Align>(() => "center")],
     footerTable: {
       title: "REKAP PER ANGGOTA",
