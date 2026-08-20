@@ -12,38 +12,58 @@ import {
 import logoUrl from "../aset/logo.png";
 
 // ============================================================
-// TEMPLATE PDF MB CHONDRO — versi compact & resmi
+// DESIGN SYSTEM PDF MB CHONDRO — "OFFICIAL ORGANIZATION REPORT"
 // ============================================================
-//  - Kertas F4 (210 × 330 mm), portrait / landscape
-//  - Font Arial-equivalent (helvetica), isi tabel 9–10 pt
-//  - Kop ringkas: logo proporsional + nama organisasi + judul
-//  - Garis burgundy tipis di bawah kop
-//  - Tabel header burgundy, baris berselang-seling tipis
-//  - Footer: garis tipis + nama organisasi + nomor halaman
+// Satu template global untuk SEMUA jenis laporan:
+//   - Kertas F4 / Folio 215.9 × 330.2 mm (portrait / landscape otomatis)
+//   - Font: Helvetica (Arial-equivalent), satu keluarga font untuk seluruh dokumen
+//   - Kop resmi: logo + MB CHONDRO + SISTEM MANAJEMEN ORGANISASI
+//   - Judul laporan, periode, tanggal cetak, summary, tabel, dan footer konsisten
+//   - Header tabel diulang otomatis pada setiap halaman lanjutan
 // ============================================================
 
-const BURGUNDY: [number, number, number] = [127, 29, 29];
-const NAVY: [number, number, number] = [15, 23, 42];
-const BODY: [number, number, number] = [31, 41, 55];
-const SLATE: [number, number, number] = [71, 85, 105];
-const MUTED: [number, number, number] = [100, 116, 139];
+const BURGUNDY: [number, number, number] = [127, 29, 29]; // maroon — identitas MB CHONDRO
+const NAVY: [number, number, number] = [15, 23, 42]; // dark navy — teks utama
+const BODY: [number, number, number] = [31, 41, 55]; // charcoal — isi tabel
+const SLATE: [number, number, number] = [71, 85, 105]; // slate — teks sekunder
+const MUTED: [number, number, number] = [100, 116, 139]; // muted — label / footer
 const WHITE: [number, number, number] = [255, 255, 255];
-const LINE: [number, number, number] = [226, 232, 240];
-const ROW_ALT: [number, number, number] = [248, 250, 252];
+const LINE: [number, number, number] = [226, 232, 240]; // light gray — border
+const ROW_ALT: [number, number, number] = [248, 250, 252]; // baris berselang
 
 const FONT = "helvetica"; // Arial-equivalent (metrik identik dengan Arial)
 
-const F4: [number, number] = [210, 330];
+// F4 / Folio
+const F4: [number, number] = [215.9, 330.2];
 
 const MARGIN = 16;
 const MARGIN_BOTTOM = 16;
 
-const FONT_TITLE = 15;
-const FONT_TABLE = 9.5;
+const FONT_ORG = 20; // nama organisasi pada kop
+const FONT_ORG_SUB = 10; // tagline organisasi
+const FONT_TITLE = 19; // judul laporan
+const FONT_SUBTITLE = 10.5; // deskripsi laporan
+const FONT_META = 9.5; // periode & tanggal cetak
+const FONT_TABLE = 9.5; // isi & header tabel
 const FONT_FOOTER = 8.5;
 
-// ---------- Logo ----------
-let logoDataUrl: string | null = null;
+// ---------- Simbol status kehadiran pada matriks rekap ----------
+// Hadir ditampilkan sebagai titik agar tabel tidak ramai saat jumlah sesi banyak.
+const SIMBOL_KEHADIRAN: Record<string, string> = {
+  H: "•",
+  I: "I",
+  S: "S",
+  C: "C",
+  A: "A",
+};
+
+function simbolKehadiran(huruf: string): string {
+  return SIMBOL_KEHADIRAN[huruf] ?? huruf;
+}
+
+// ---------- Logo (dipotong area transparan, proporsional, tanpa kotak putih) ----------
+
+let logoCache: { dataUrl: string; w: number; h: number } | null = null;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
@@ -55,37 +75,66 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 }
 
 /**
- * Muat logo dan jadikan data URL dengan proporsi asli (tanpa potong/stretch).
- * Halaman PDF berwarna putih sehingga latar canvas putih tidak terlihat.
+ * Muat logo, buang area transparan di sekelilingnya, lalu jadikan JPEG.
+ * Hasilnya logo tetap proporsional dan tidak muncul kotak putih di belakangnya.
  */
-async function getLogoDataUrl(): Promise<string | null> {
-  if (logoDataUrl !== null) return logoDataUrl;
+async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | null> {
+  if (logoCache) return logoCache;
   try {
     const img = await loadImage(logoUrl);
-    const maxDim = 800;
+    const maxDim = 900;
     const scale = Math.min(maxDim / img.naturalWidth, maxDim / img.naturalHeight, 2);
     const w = Math.max(1, Math.round(img.naturalWidth * scale));
     const h = Math.max(1, Math.round(img.naturalHeight * scale));
     const canvas = document.createElement("canvas");
     canvas.width = w;
     canvas.height = h;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) {
-      logoDataUrl = null;
-      return null;
-    }
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, w, h);
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    if (!ctx) return null;
     ctx.drawImage(img, 0, 0, w, h);
-    logoDataUrl = canvas.toDataURL("image/jpeg", 0.92);
-    return logoDataUrl;
+
+    // Cari bounding box pixel non-transparan (buang margin transparan)
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    let minX = w;
+    let minY = h;
+    let maxX = -1;
+    let maxY = -1;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        if (data[(y * w + x) * 4 + 3] > 8) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (maxX < minX || maxY < minY) {
+      logoCache = { dataUrl: canvas.toDataURL("image/jpeg", 0.92), w, h };
+      return logoCache;
+    }
+
+    const cw = maxX - minX + 1;
+    const ch = maxY - minY + 1;
+    const crop = document.createElement("canvas");
+    crop.width = cw;
+    crop.height = ch;
+    const cctx = crop.getContext("2d");
+    if (!cctx) return null;
+    cctx.fillStyle = "#ffffff";
+    cctx.fillRect(0, 0, cw, ch);
+    cctx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+    logoCache = { dataUrl: crop.toDataURL("image/jpeg", 0.92), w: cw, h: ch };
+    return logoCache;
   } catch {
-    logoDataUrl = null;
+    logoCache = null;
     return null;
   }
 }
 
 // ---------- Elemen kop ----------
+
 function addTopBand(doc: jsPDF) {
   const w = doc.internal.pageSize.getWidth();
   doc.setFillColor(...BURGUNDY);
@@ -102,52 +151,61 @@ function drawDoubleLine(doc: jsPDF, y: number) {
   doc.line(MARGIN, y + 1.2, w - MARGIN, y + 1.2);
 }
 
-/** Header halaman pertama: logo + identitas organisasi + judul laporan */
+/** Header halaman pertama: logo + identitas organisasi + judul + periode + tanggal cetak */
 async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, periode: string): Promise<number> {
   const w = doc.internal.pageSize.getWidth();
+  const usable = w - MARGIN * 2;
   addTopBand(doc);
 
-  const logo = await getLogoDataUrl();
+  // Logo proporsional — tinggi tetap, lebar mengikuti rasio asli (hasil crop)
+  let textX = MARGIN;
+  const logo = await getLogo();
   if (logo) {
-    // Logo proporsional (banner 1009×394), cukup jelas tapi tetap ringkas
-    const logoW = 22;
-    const logoH = (logoW * 394) / 1009;
+    const logoH = 12;
+    const logoW = (logoH * logo.w) / logo.h;
     try {
-      doc.addImage(logo, "JPEG", MARGIN, 8, logoW, logoH);
+      doc.addImage(logo.dataUrl, "JPEG", MARGIN, 8, logoW, logoH);
+      textX = MARGIN + logoW + 6;
     } catch {
       // abaikan jika logo gagal dirender
     }
   }
 
   doc.setFont(FONT, "bold");
-  doc.setFontSize(18);
+  doc.setFontSize(FONT_ORG);
   doc.setTextColor(...BURGUNDY);
-  doc.text("MB CHONDRO", MARGIN + 27, 13);
+  doc.text("MB CHONDRO", textX, 16.5);
 
-  doc.setFontSize(9.5);
-  doc.setTextColor(...NAVY);
-  doc.text("SISTEM MANAJEMEN ORGANISASI", MARGIN + 27, 18.5);
-
-  const titleY = 27;
   doc.setFont(FONT, "bold");
-  doc.setFontSize(FONT_TITLE);
+  doc.setFontSize(FONT_ORG_SUB);
   doc.setTextColor(...NAVY);
-  doc.text(`LAPORAN ${judul.toUpperCase()}`, MARGIN, titleY);
+  doc.text("SISTEM MANAJEMEN ORGANISASI", textX, 22.5);
+
+  // Judul laporan — ukuran menyesuaikan agar tidak bertabrakan dengan periode
+  const title = `LAPORAN ${judul.toUpperCase()}`;
+  let titleSize = FONT_TITLE;
+  doc.setFont(FONT, "bold");
+  doc.setFontSize(titleSize);
+  while (titleSize > 14 && doc.getTextWidth(title) > usable * 0.58) {
+    titleSize -= 0.5;
+    doc.setFontSize(titleSize);
+  }
+  doc.setTextColor(...NAVY);
+  doc.text(title, MARGIN, 31.5);
 
   doc.setFont(FONT, "normal");
-  doc.setFontSize(10.5);
+  doc.setFontSize(FONT_SUBTITLE);
   doc.setTextColor(...MUTED);
-  doc.text(subtitle, MARGIN, titleY + 6);
+  doc.text(subtitle, MARGIN, 37.5);
 
-  doc.setFontSize(FONT_TABLE);
+  doc.setFontSize(FONT_META);
   doc.setTextColor(...SLATE);
-  doc.text(`Periode: ${periode}`, w - MARGIN, titleY, { align: "right" });
-  doc.text(`Dicetak: ${formatTanggalPanjang(new Date().toISOString())}`, w - MARGIN, titleY + 6, { align: "right" });
+  doc.text(`Periode: ${periode}`, w - MARGIN, 31.5, { align: "right" });
+  doc.text(`Dicetak: ${formatTanggalPanjang(new Date().toISOString())}`, w - MARGIN, 37.5, { align: "right" });
 
-  drawDoubleLine(doc, titleY + 10.5);
+  drawDoubleLine(doc, 42.5);
 
-  let startY = titleY + 14.5;
-  return startY;
+  return 46.5;
 }
 
 /** Header halaman lanjutan: ringkas, identitas singkat + garis pemisah */
@@ -174,106 +232,50 @@ function drawPageFooter(doc: jsPDF, pageNumber: number, totalPages: number) {
   doc.text(`Halaman ${pageNumber} dari ${totalPages}`, w - MARGIN, h - MARGIN_BOTTOM + 5.5, { align: "right" });
 }
 
-// ---------- Ringkasan (rekapan di atas tabel) ----------
+// ---------- Ringkasan (rekap di atas tabel) ----------
+
 export interface SummaryItem {
   label: string;
   value: string;
 }
 
 /**
- * Gambar kotak rekap sebagai grid berkolom sama (seperti flex/grid).
- * Semua item dimulai dari posisi X kolom yang sama sehingga benar-benar sejajar,
- * label 9pt + nilai 10pt tebal dalam satu baris ("Label: Nilai").
+ * Ringkasan berupa grid rapi tanpa kotak/card: label kecil di atas, nilai tebal di bawah.
+ * Semua kolom sama lebar sehingga benar-benar sejajar.
  */
 function drawSummary(doc: jsPDF, items: SummaryItem[], startY: number): number {
   const w = doc.internal.pageSize.getWidth();
   const usable = w - MARGIN * 2;
-
-  // Grid kolom sama besar: 6 item → 3×2, 4 item → 4×1, 3 item → 3×1
-  const perRow = items.length >= 6 ? 3 : items.length >= 4 ? 4 : items.length;
+  const minColW = 38;
+  const perRow = Math.max(1, Math.min(items.length, Math.floor(usable / minColW)));
+  const cellW = usable / perRow;
   const rows = Math.ceil(items.length / perRow);
-  const lineH = 5;
-
-  const labelSize = 9;
-  const valueSize = 10;
-
-  // Kotak compact (padding ~3.5mm, radius 2mm)
-  const padTop = 3.5;
-  const padBottom = 3.5;
-  const padContent = 4;
-  const accentW = 1.5;
-  const boxX = MARGIN;
-  const boxW = usable;
-  const boxH = padTop + rows * lineH + padBottom;
-  const boxY = startY + 1; // sedikit jarak dari garis pemisah
-  const rx = 2;
-
-  // Latar sangat terang + border abu tipis
-  doc.setFillColor(...ROW_ALT);
-  doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(boxX, boxY, boxW, boxH, rx, rx, "FD");
-
-  // Aksen burgundy tipis di kiri, mengikuti tinggi kotak
-  doc.setFillColor(...BURGUNDY);
-  doc.roundedRect(boxX, boxY + 2, accentW, boxH - 4, 1, 1, "F");
-
-  // Area teks dengan padding horizontal simetris (menyeimbangkan aksen kiri)
-  const contentLeft = boxX + accentW + padContent;
-  const contentRight = boxX + boxW - padContent;
-  const cellW = (contentRight - contentLeft) / perRow;
+  const rowH = 6.6;
+  const labelSize = 8.5;
+  const valueSize = 11;
 
   items.forEach((item, i) => {
     const col = i % perRow;
     const row = Math.floor(i / perRow);
-    const x = contentLeft + col * cellW;
-    const y = boxY + padTop + row * lineH;
+    const x = MARGIN + col * cellW;
+    const y = startY + row * rowH;
 
-    const labelText = `${item.label}: `;
     doc.setFont(FONT, "normal");
     doc.setFontSize(labelSize);
     doc.setTextColor(...MUTED);
-    const labelW = doc.getTextWidth(labelText);
+    doc.text(item.label, x, y);
 
-    // Pilih ukuran nilai terbesar yang tetap muat di dalam kolom
-    // (menghindari teks bertumpuk/meluap ke kolom sebelah).
-    let valSize = valueSize;
     doc.setFont(FONT, "bold");
-    doc.setFontSize(valSize);
-    while (valSize > 8 && labelW + doc.getTextWidth(item.value) > cellW - 1) {
-      valSize -= 0.5;
-      doc.setFontSize(valSize);
-    }
-    const valueW = doc.getTextWidth(item.value);
-
-    if (labelW + valueW <= cellW - 1) {
-      // Satu baris: "Label: Nilai"
-      doc.setFont(FONT, "normal");
-      doc.setFontSize(labelSize);
-      doc.setTextColor(...MUTED);
-      doc.text(labelText, x, y);
-      doc.setFont(FONT, "bold");
-      doc.setFontSize(valSize);
-      doc.setTextColor(...NAVY);
-      doc.text(item.value, x + labelW, y);
-    } else {
-      // Fallback: nilai ditaruh di baris kedua, tetap di dalam kolomnya
-      doc.setFont(FONT, "normal");
-      doc.setFontSize(labelSize);
-      doc.setTextColor(...MUTED);
-      doc.text(labelText, x, y);
-      doc.setFont(FONT, "bold");
-      doc.setFontSize(8);
-      doc.setTextColor(...NAVY);
-      doc.text(item.value, x, y + 4.3);
-    }
+    doc.setFontSize(valueSize);
+    doc.setTextColor(...NAVY);
+    doc.text(item.value, x, y + 4.6);
   });
 
-  return boxY + boxH + 3.5;
+  return startY + rows * rowH + 4;
 }
 
 // ============================================================
-// GENERATOR UTAMA (reusable template)
+// GENERATOR UTAMA (template global)
 // ============================================================
 
 type Align = "left" | "center" | "right";
@@ -283,6 +285,7 @@ interface TableOptions {
   rows: (string | number)[][];
   columnAligns?: Align[];
   columnWidths?: number[];
+  cellPadding?: number | { top: number; right: number; bottom: number; left: number };
 }
 
 interface FooterTableOptions extends TableOptions {
@@ -329,7 +332,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
 
   const drawMetaLine = (text: string) => {
     doc.setFont(FONT, "normal");
-    doc.setFontSize(9.5);
+    doc.setFontSize(FONT_META);
     doc.setTextColor(...SLATE);
     doc.text(text, MARGIN, startY, { maxWidth: usableWidth });
     startY += 4.5;
@@ -359,7 +362,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
       styles: {
         font: FONT,
         fontSize: tableFont,
-        cellPadding: { top: 2.2, right: 2.5, bottom: 2.2, left: 2.5 },
+        cellPadding: table.cellPadding ?? { top: 2.2, right: 2.5, bottom: 2.2, left: 2.5 },
         textColor: BODY,
         lineColor: LINE,
         lineWidth: 0.15,
@@ -372,7 +375,11 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
         fontStyle: "bold",
         fontSize: tableFont,
         halign: "center",
-        cellPadding: { top: 2.4, right: 2.5, bottom: 2.4, left: 2.5 },
+        cellPadding: table.cellPadding
+          ? typeof table.cellPadding === "object"
+            ? { top: (table.cellPadding.top ?? 2.2) + 0.3, right: table.cellPadding.right ?? 2.5, bottom: (table.cellPadding.bottom ?? 2.2) + 0.3, left: table.cellPadding.left ?? 2.5 }
+            : (table.cellPadding as number) + 0.3
+          : { top: 2.4, right: 2.5, bottom: 2.4, left: 2.5 },
       },
       alternateRowStyles: { fillColor: ROW_ALT },
       columnStyles: buildColumnStyles(table.columnAligns, table.columnWidths, tableScale),
@@ -395,7 +402,6 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
     const pageH = doc.internal.pageSize.getHeight();
     if (ft.startNewPage || y + 18 > pageH - MARGIN_BOTTOM) {
       doc.addPage();
-      drawCompactHeader(doc);
       y = 23;
     }
     doc.setFont(FONT, "bold");
@@ -424,7 +430,7 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
 // LAPORAN PER JENIS
 // ============================================================
 
-/** Laporan data anggota (terima data yang sudah difilter di halaman) */
+/** Laporan data anggota (portrait — tabel sederhana) */
 export async function laporanAnggota(anggota: Anggota[], periode: string) {
   const aktif = anggota.filter((a) => a.status === "Aktif").length;
   const cuti = anggota.filter((a) => a.status === "Cuti").length;
@@ -450,12 +456,12 @@ export async function laporanAnggota(anggota: Anggota[], periode: string) {
       { label: "Cuti", value: `${cuti}` },
       { label: "Tidak Aktif", value: `${tidakAktif}` },
     ],
-    columnWidths: [10, 36, 24, 24, 26, 16, 24, 20],
+    columnWidths: [9, 38, 24, 24, 26, 16, 24, 22],
     columnAligns: ["center", "left", "left", "left", "center", "center", "center", "left"],
   });
 }
 
-/** Laporan riwayat absensi per catatan (terima data yang sudah difilter di halaman) */
+/** Laporan riwayat absensi per catatan (landscape — banyak kolom) */
 export async function laporanAbsensi(absensi: Absensi[], periode: string) {
   const stat = hitungStatKehadiran(absensi);
   const tidakHadir = stat.izin + stat.sakit + stat.cuti + stat.alpa;
@@ -464,7 +470,6 @@ export async function laporanAbsensi(absensi: Absensi[], periode: string) {
     .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""))
     .map((a, i) => [
       i + 1,
-      a.id,
       a.nama,
       formatTanggal(a.tanggal),
       a.kegiatan,
@@ -473,8 +478,9 @@ export async function laporanAbsensi(absensi: Absensi[], periode: string) {
       a.keterangan || "-",
     ]);
 
-  await createPdf("ABSENSI", "Rekap riwayat absensi MB Chondro", periode, {
-    columns: ["No", "ID Absensi", "Nama", "Tanggal", "Kegiatan", "Waktu", "Status", "Keterangan"],
+  await createPdf("RIWAYAT ABSENSI", "Rekap riwayat absensi MB Chondro", periode, {
+    orientation: "landscape",
+    columns: ["No", "Nama Lengkap", "Tanggal", "Kegiatan", "Waktu", "Status", "Keterangan"],
     rows,
     summary: [
       { label: "Total Hadir", value: `${stat.hadir}` },
@@ -485,8 +491,8 @@ export async function laporanAbsensi(absensi: Absensi[], periode: string) {
       { label: "Tidak Hadir", value: `${tidakHadir}` },
       { label: "Persentase Kehadiran", value: `${stat.persentase}%` },
     ],
-    columnWidths: [9, 20, 40, 20, 40, 14, 14, 23],
-    columnAligns: ["center", "center", "left", "center", "left", "center", "center", "left"],
+    columnWidths: [9, 55, 22, 75, 16, 16, 60],
+    columnAligns: ["center", "left", "center", "left", "center", "center", "left"],
   });
 }
 
@@ -533,7 +539,7 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
     i + 1,
     ag.nama,
     ag.divisi || "-",
-    ...kolomKunci.map((k) => statusByMember.get(ag.id)?.get(k) ?? "*"),
+    ...kolomKunci.map((k) => simbolKehadiran(statusByMember.get(ag.id)?.get(k) ?? "*")),
   ]);
 
   // Rekapan per anggota (ringkas dalam satu kolom teks) untuk ditaruh di ujung laporan
@@ -556,8 +562,9 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
 
   // Matriks berisi kolom tanggal → otomatis pakai Landscape F4 bila perlu
   const fixedW = 10 + 46 + 24;
-  const portraitFits = 180 - fixedW >= countDate * 9.5;
-  const usable = (portraitFits ? 210 : 330) - MARGIN * 2;
+  const portraitUsable = 215.9 - MARGIN * 2;
+  const portraitFits = portraitUsable - fixedW >= countDate * 9.5;
+  const usable = (portraitFits ? 215.9 : 330.2) - MARGIN * 2;
   const dateColW = (usable - fixedW) / countDate;
   const tableFontSize = Math.min(FONT_TABLE, Math.max(6.5, dateColW * 0.95));
 
@@ -574,8 +581,9 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
       { label: "Total Alpa", value: `${stat.alpa}` },
       { label: "Persentase Kehadiran", value: `${stat.persentase}%` },
     ],
-    legend: "Legenda: H = Hadir, I = Izin, S = Sakit, C = Cuti, A = Alpa, * = Tidak ada absensi",
+    legend: "Legenda: • = Hadir, I = Izin, S = Sakit, C = Cuti, A = Alpa, * = Tidak ada absensi",
     tableFontSize,
+    cellPadding: { top: 2.6, right: 2, bottom: 2.6, left: 2 },
     fileName: `Laporan-rekap-absensi-${new Date().toISOString().slice(0, 10)}.pdf`,
     columnWidths: [10, 46, 24, ...kolomKunci.map(() => dateColW)],
     columnAligns: ["center", "left", "left", ...kolomKunci.map<Align>(() => "center")],
@@ -588,9 +596,10 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
       columnWidths: [10, 66, 17, 17, 17, 17, 17, 17],
       columnAligns: ["center", "left", "center", "center", "center", "center", "center", "center"],
     },
-  });}
+  });
+}
 
-/** Laporan keuangan dengan saldo berjalan (terima data yang sudah difilter) */
+/** Laporan keuangan dengan saldo berjalan (landscape — banyak kolom) */
 export async function laporanKeuangan(transaksi: Transaksi[], periode: string, judulKas: string) {
   const saldo = hitungSaldo(transaksi);
 
@@ -612,7 +621,8 @@ export async function laporanKeuangan(transaksi: Transaksi[], periode: string, j
     ];
   });
 
-  await createPdf(judulKas.toUpperCase(), `Laporan keuangan ${judulKas}`, periode, {
+  await createPdf(judulKas.toUpperCase(), `Pemasukan dan pengeluaran ${judulKas}`, periode, {
+    orientation: "landscape",
     columns: ["No", "Tanggal", "Keterangan", "Kategori", "Pemasukan", "Pengeluaran", "Saldo"],
     rows,
     summary: [
@@ -620,7 +630,7 @@ export async function laporanKeuangan(transaksi: Transaksi[], periode: string, j
       { label: "Total Pengeluaran", value: formatRupiah(saldo.pengeluaran) },
       { label: "Saldo", value: formatRupiah(saldo.saldo) },
     ],
-    columnWidths: [9, 22, 52, 26, 24, 24, 23],
+    columnWidths: [9, 24, 80, 34, 38, 38, 40],
     columnAligns: ["center", "center", "left", "left", "right", "right", "right"],
   });
 }
