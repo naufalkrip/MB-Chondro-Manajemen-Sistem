@@ -269,28 +269,50 @@ export function Absensi() {
     setFormErrors(err);
     if (Object.keys(err).length > 0) return;
 
-    const dup = cekDuplikat(formTanggal, formKegiatan, formWaktu as string);
-    if (dup.length > 0) {
-      toastError("Absensi untuk tanggal, kegiatan, waktu, dan anggota tersebut sudah tersedia.");
-      return;
+    setSaving(true);
+    const sessionKey = `${formTanggal}|${formKegiatan.trim().toLowerCase()}|${formWaktu as string}`;
+    const existingByMember = new Map<string, Absensi>();
+    for (const a of absensi) {
+      if (`${a.tanggal}|${a.kegiatan.trim().toLowerCase()}|${a.waktu}` === sessionKey) {
+        existingByMember.set(a.idAnggota, a);
+      }
     }
 
-    setSaving(true);
-    const payloads = anggota.map((a) => ({
-      idAnggota: a.id,
-      tanggal: formTanggal,
-      kegiatan: formKegiatan.trim(),
-      waktu: formWaktu as WaktuAbsensi,
-      status: formStatus[a.id] ?? "Hadir",
-      keterangan: "",
-    }));
-    const res = await saveAbsensiBatch(payloads);
+    const toAdd: Omit<Absensi, "id" | "nama">[] = [];
+    const toUpdate: Omit<Absensi, "nama">[] = [];
+    for (const a of anggota) {
+      const payload = {
+        idAnggota: a.id,
+        tanggal: formTanggal,
+        kegiatan: formKegiatan.trim(),
+        waktu: formWaktu as WaktuAbsensi,
+        status: formStatus[a.id] ?? "Hadir",
+        keterangan: "",
+      };
+      const existing = existingByMember.get(a.id);
+      if (existing) toUpdate.push({ ...payload, id: existing.id });
+      else toAdd.push(payload);
+    }
+
+    let failed = "";
+    if (toAdd.length > 0) {
+      const res = await saveAbsensiBatch(toAdd);
+      if (!res.success) failed = res.message;
+    }
+    if (!failed && toUpdate.length > 0) {
+      const res = await updateAbsensiBatch(toUpdate);
+      if (!res.success) failed = res.message;
+    }
     setSaving(false);
 
-    if (!res.success) {
-      toastError(res.message);
+    if (failed) {
+      toastError(failed);
     } else {
-      toastSuccess("Absensi berhasil disimpan.");
+      toastSuccess(
+        toAdd.length === 0 && toUpdate.length > 0
+          ? "Absensi berhasil diperbarui."
+          : "Absensi berhasil disimpan."
+      );
       setFormStatus({});
       await refresh();
     }

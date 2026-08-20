@@ -65,7 +65,19 @@ async function request<T>(action: ActionName, data?: Record<string, unknown>): P
       body,
     });
   } catch {
-    throw new Error("Gagal menghubungi server.");
+    throw new Error("Gagal menghubungi server. Periksa koneksi internet atau API_URL di src/config.ts.");
+  }
+
+  if (!response.ok) {
+    if (response.status === 404) {
+      throw new Error(
+        "Endpoint API tidak ditemukan (404). Pastikan API_URL di src/config.ts adalah URL deployment Apps Script yang masih aktif."
+      );
+    }
+    if (response.status === 405) {
+      throw new Error("Metode request tidak diizinkan (405). Periksa konfigurasi deployment Apps Script.");
+    }
+    throw new Error(`Server merespons dengan status ${response.status}.`);
   }
 
   const text = await response.text();
@@ -73,7 +85,7 @@ async function request<T>(action: ActionName, data?: Record<string, unknown>): P
   try {
     parsed = JSON.parse(text);
   } catch {
-    throw new Error("Respons server tidak valid.");
+    throw new Error("Respons server tidak valid. Pastikan API_URL menunjuk ke deployment Apps Script yang benar.");
   }
 
   if (!parsed || parsed.success !== true) {

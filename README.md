@@ -69,11 +69,12 @@ export const API_URL = "https://script.google.com/macros/s/<ID_DEPLOYMENT>/exec"
 Status valid: `Aktif`, `Cuti`, `Tidak Aktif`
 
 ### Sheet ABSENSI
-| ID Absensi | ID Anggota | Nama | Tanggal | Kegiatan | Status Kehadiran | Keterangan |
-|---|---|---|---|---|---|---|
-| ABS001 | MB001 | Ahmad | 2026-08-16 | Latihan Musik | Hadir | - |
+| ID Absensi | ID Anggota | Nama | Tanggal | Kegiatan | Status Kehadiran | Keterangan | Waktu |
+|---|---|---|---|---|---|---|---|
+| ABS001 | MB001 | Ahmad | 2026-08-16 | Latihan Musik | Hadir | - | Pagi |
 
-Status valid: `Hadir`, `Izin`, `Sakit`, `Alpa`
+Status valid: `Hadir`, `Izin`, `Sakit`, `Cuti`, `Alpa`
+Waktu valid: `Pagi`, `Siang`, `Malam`
 
 ### Sheet KEUANGAN_CHONDRO & KEUANGAN_MEDIA
 | ID Transaksi | Tanggal | Jenis | Kategori | Keterangan | Nominal | Penanggung Jawab |
