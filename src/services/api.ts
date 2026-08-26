@@ -948,7 +948,7 @@ export function fileToBase64(file: File): Promise<string> {
  * Mengompres gambar menjadi format JPEG resolusi tajam (hingga 800-1080px)
  * yang aman (<= 42.000 karakter) dengan latar putih agar gambar transparan (PNG) tidak menjadi hitam.
  */
-export function compressImageToSafeHd(file: File, maxChars = 42000): Promise<string> {
+export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
@@ -961,7 +961,7 @@ export function compressImageToSafeHd(file: File, maxChars = 42000): Promise<str
       img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
       img.onload = () => {
         let maxDim = 800;
-        let quality = 0.8;
+        let quality = 0.78;
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) {

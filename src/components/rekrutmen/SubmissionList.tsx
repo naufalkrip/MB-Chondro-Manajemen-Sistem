@@ -119,6 +119,12 @@ export function SubmissionList({
 
   // Lightbox Image
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null);
+  const [lightboxImgError, setLightboxImgError] = useState(false);
+
+  const openPhotoLightbox = (url: string, title: string) => {
+    setLightboxImage({ url, title });
+    setLightboxImgError(false);
+  };
 
   // PDF Export Modal State
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -299,10 +305,10 @@ export function SubmissionList({
       fileUrl.includes("thumbnail");
 
     if (isImage) {
-      setLightboxImage({
-        url: fileUrl,
-        title: ans.field?.label || ans.fileName || "Foto Calon Anggota",
-      });
+      openPhotoLightbox(
+        fileUrl,
+        ans.field?.label || ans.fileName || "Foto Calon Anggota"
+      );
     } else {
       try {
         if (fileUrl.startsWith("data:")) {
@@ -373,7 +379,7 @@ export function SubmissionList({
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxImage({ url: fotoUrl, title: namaField?.value || "Foto Calon Anggota" });
+                  openPhotoLightbox(fotoUrl, namaField?.value || "Foto Calon Anggota");
                 }}
                 style={{
                   width: 34,
@@ -770,10 +776,10 @@ export function SubmissionList({
                             <div
                               style={{ position: "relative", cursor: "pointer" }}
                               onClick={() =>
-                                setLightboxImage({
-                                  url: fileUrl,
-                                  title: ans.field?.label || ans.fileName || "Foto Calon Anggota",
-                                })
+                                openPhotoLightbox(
+                                  fileUrl,
+                                  ans.field?.label || ans.fileName || "Foto Calon Anggota"
+                                )
                               }
                             >
                               <img
@@ -1232,20 +1238,43 @@ export function SubmissionList({
                   </button>
                 </div>
               </div>
-              <div style={{ padding: 16, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img
-                  src={lightboxImage.url}
-                  alt="Foto Calon"
-                  referrerPolicy={lightboxImage.url.startsWith("http") ? "no-referrer" : undefined}
-                  onError={(e) => {
-                    const currentSrc = e.currentTarget.src;
-                    const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                    if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                      e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
-                    }
-                  }}
-                  style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}
-                />
+              <div style={{ padding: 24, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 240 }}>
+                {lightboxImgError ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#f8fafc", padding: "10px" }}>
+                    <span style={{ fontSize: "36px" }}>📸</span>
+                    <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>Foto Tersimpan Pada Versi Sebelumnya</strong>
+                    <p style={{ fontSize: "12.5px", color: "#94a3b8", maxWidth: 380, margin: 0, lineHeight: 1.5 }}>
+                      Foto ini terpotong pada pengiriman sebelumnya sebelum sistem resolusi aman aktif. Pendaftaran baru yang dikirim saat ini akan menampilkan foto dengan 100% jernih dan utuh.
+                    </p>
+                    {lightboxImage.url.startsWith("http") && (
+                      <a
+                        href={lightboxImage.url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="btn btn-primary btn-sm"
+                        style={{ marginTop: 6 }}
+                      >
+                        Buka Tautan Asli ↗
+                      </a>
+                    )}
+                  </div>
+                ) : (
+                  <img
+                    src={lightboxImage.url}
+                    alt={lightboxImage.title}
+                    referrerPolicy={lightboxImage.url.startsWith("http") ? "no-referrer" : undefined}
+                    onError={(e) => {
+                      const currentSrc = e.currentTarget.src;
+                      const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                      if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                        e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                      } else {
+                        setLightboxImgError(true);
+                      }
+                    }}
+                    style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}
+                  />
+                )}
               </div>
             </div>
           </div>,
