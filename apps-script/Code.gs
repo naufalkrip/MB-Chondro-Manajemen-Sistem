@@ -454,6 +454,46 @@ function findRowIndex(cfg, id) {
   return -1;
 }
 
+function getHeaderIndexMap(sheet) {
+  var lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return {};
+  var headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  var map = {};
+  for (var c = 0; c < headerRow.length; c++) {
+    var h = String(headerRow[c] || "").trim().toLowerCase();
+    if (h) map[h] = c;
+  }
+  return map;
+}
+
+function buildRowArray(sheet, cfg, dataObj) {
+  var lastCol = Math.max(sheet.getLastColumn(), cfg.keys.length);
+  var headerMap = getHeaderIndexMap(sheet);
+  var row = new Array(lastCol).fill("");
+
+  // Isi array dengan mencocokkan nama key / header ke kolom sheet sebenarnya
+  for (var k = 0; k < cfg.keys.length; k++) {
+    var key = cfg.keys[k];
+    var header = cfg.headers[k];
+    var val = dataObj[key];
+    if (val === undefined || val === null) val = "";
+
+    var colIdx = -1;
+    if (headerMap[String(key).toLowerCase()] !== undefined) {
+      colIdx = headerMap[String(key).toLowerCase()];
+    } else if (headerMap[String(header).toLowerCase()] !== undefined) {
+      colIdx = headerMap[String(header).toLowerCase()];
+    } else if (k < row.length) {
+      colIdx = k;
+    }
+
+    if (colIdx >= 0 && colIdx < row.length) {
+      row[colIdx] = val;
+    }
+  }
+  return row;
+}
+
 function hitungSaldo(list) {
   var pemasukan = 0;
   var pengeluaran = 0;
@@ -1320,49 +1360,36 @@ function addRekrutmenField(data) {
   }
 
   var isUpload = data.fieldType === "image" || data.fieldType === "file";
-  var exampleImageUrl = isUpload ? String(data.exampleImageUrl || "").trim() : "";
+  var exampleImageUrl = String(data.exampleImageUrl || "").trim();
   if (exampleImageUrl.length > 48000) {
     exampleImageUrl = exampleImageUrl.substring(0, 48000);
   }
-  var exampleImageTitle = isUpload ? String(data.exampleImageTitle || "").trim() : "";
+  var exampleImageTitle = String(data.exampleImageTitle || "").trim();
   var maxFileSize = isUpload ? (Number(data.maxFileSize) || (data.fieldType === "image" ? 2 : 5)) : 0;
 
-  var row = [
-    id,
-    String(data.formId),
-    String(data.label || "").trim(),
-    String(data.description || "").trim(),
-    String(data.fieldType || "text"),
-    Boolean(data.required),
-    typeof data.options === "string" ? data.options : JSON.stringify(data.options || []),
-    Number(sortOrder) || 0,
-    String(data.placeholder || "").trim(),
-    exampleImageUrl,
-    exampleImageTitle,
-    maxFileSize,
-    typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes || []),
-    now,
-    now
-  ];
-  sheet.appendRow(row);
-  return {
+  var fieldObj = {
     id: id,
-    formId: row[1],
-    label: row[2],
-    description: row[3],
-    fieldType: row[4],
-    required: row[5],
-    options: row[6],
-    sortOrder: row[7],
-    placeholder: row[8],
-    exampleImageUrl: row[9],
-    exampleImageTitle: row[10],
-    maxFileSize: row[11],
-    allowedFileTypes: row[12],
-    createdAt: row[13],
-    updatedAt: row[14],
-    message: "Pertanyaan berhasil ditambahkan."
+    formId: String(data.formId),
+    label: String(data.label || "").trim(),
+    description: String(data.description || "").trim(),
+    fieldType: String(data.fieldType || "text"),
+    required: Boolean(data.required),
+    options: typeof data.options === "string" ? data.options : JSON.stringify(data.options || []),
+    sortOrder: Number(sortOrder) || 0,
+    placeholder: String(data.placeholder || "").trim(),
+    exampleImageUrl: exampleImageUrl,
+    exampleImageTitle: exampleImageTitle,
+    maxFileSize: maxFileSize,
+    allowedFileTypes: typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes || []),
+    createdAt: now,
+    updatedAt: now
   };
+
+  var row = buildRowArray(sheet, cfg, fieldObj);
+  sheet.appendRow(row);
+
+  fieldObj.message = "Pertanyaan berhasil ditambahkan.";
+  return fieldObj;
 }
 
 function updateRekrutmenField(data) {
@@ -1371,55 +1398,50 @@ function updateRekrutmenField(data) {
   var rowIndex = findRowIndex(cfg, data.id);
   if (rowIndex === -1) throw new Error("Pertanyaan tidak ditemukan.");
   var sheet = getOrCreateSheet(cfg);
-  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
-  var createdAt = existingRow[13] || existingRow[8] || new Date().toISOString();
+
+  var allExisting = readRows(cfg);
+  var existing = null;
+  for (var i = 0; i < allExisting.length; i++) {
+    if (String(allExisting[i].id) === String(data.id)) {
+      existing = allExisting[i];
+      break;
+    }
+  }
+  var createdAt = (existing && existing.createdAt) || new Date().toISOString();
   var now = new Date().toISOString();
 
-  var fType = data.fieldType || existingRow[4] || "text";
+  var fType = data.fieldType || (existing && existing.fieldType) || "text";
   var isUpload = fType === "image" || fType === "file";
-  var exampleImageUrl = isUpload ? (data.exampleImageUrl !== undefined ? String(data.exampleImageUrl).trim() : String(existingRow[9] || "")) : "";
+  var exampleImageUrl = data.exampleImageUrl !== undefined ? String(data.exampleImageUrl).trim() : (existing && existing.exampleImageUrl ? String(existing.exampleImageUrl).trim() : "");
   if (exampleImageUrl.length > 48000) {
     exampleImageUrl = exampleImageUrl.substring(0, 48000);
   }
-  var exampleImageTitle = isUpload ? (data.exampleImageTitle !== undefined ? String(data.exampleImageTitle).trim() : String(existingRow[10] || "")) : "";
-  var maxFileSize = isUpload ? (data.maxFileSize !== undefined ? Number(data.maxFileSize) : (Number(existingRow[11]) || 2)) : 0;
+  var exampleImageTitle = data.exampleImageTitle !== undefined ? String(data.exampleImageTitle).trim() : (existing && existing.exampleImageTitle ? String(existing.exampleImageTitle).trim() : "");
+  var maxFileSize = isUpload ? (data.maxFileSize !== undefined ? Number(data.maxFileSize) : (existing && existing.maxFileSize ? Number(existing.maxFileSize) : 2)) : 0;
 
-  var row = [
-    data.id,
-    String(data.formId || existingRow[1]),
-    String(data.label !== undefined ? data.label : existingRow[2]).trim(),
-    String(data.description !== undefined ? data.description : existingRow[3]).trim(),
-    String(fType),
-    data.required !== undefined ? Boolean(data.required) : Boolean(existingRow[5]),
-    data.options !== undefined ? (typeof data.options === "string" ? data.options : JSON.stringify(data.options)) : existingRow[6],
-    data.sortOrder !== undefined ? Number(data.sortOrder) : Number(existingRow[7]),
-    data.placeholder !== undefined ? String(data.placeholder).trim() : String(existingRow[8] || ""),
-    exampleImageUrl,
-    exampleImageTitle,
-    maxFileSize,
-    data.allowedFileTypes !== undefined ? (typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes)) : existingRow[12],
-    createdAt,
-    now
-  ];
-  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
-  return {
+  var fieldObj = {
     id: data.id,
-    formId: row[1],
-    label: row[2],
-    description: row[3],
-    fieldType: row[4],
-    required: row[5],
-    options: row[6],
-    sortOrder: row[7],
-    placeholder: row[8],
-    exampleImageUrl: row[9],
-    exampleImageTitle: row[10],
-    maxFileSize: row[11],
-    allowedFileTypes: row[12],
-    createdAt: row[13],
-    updatedAt: row[14],
-    message: "Pertanyaan berhasil diperbarui."
+    formId: String(data.formId || (existing && existing.formId) || ""),
+    label: String(data.label !== undefined ? data.label : (existing && existing.label) || "").trim(),
+    description: String(data.description !== undefined ? data.description : (existing && existing.description) || "").trim(),
+    fieldType: String(fType),
+    required: data.required !== undefined ? Boolean(data.required) : Boolean(existing && existing.required),
+    options: data.options !== undefined ? (typeof data.options === "string" ? data.options : JSON.stringify(data.options)) : (existing && existing.options ? (typeof existing.options === "string" ? existing.options : JSON.stringify(existing.options)) : "[]"),
+    sortOrder: data.sortOrder !== undefined ? Number(data.sortOrder) : Number((existing && existing.sortOrder) || 0),
+    placeholder: data.placeholder !== undefined ? String(data.placeholder).trim() : String((existing && existing.placeholder) || ""),
+    exampleImageUrl: exampleImageUrl,
+    exampleImageTitle: exampleImageTitle,
+    maxFileSize: maxFileSize,
+    allowedFileTypes: data.allowedFileTypes !== undefined ? (typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes)) : (existing && existing.allowedFileTypes ? (typeof existing.allowedFileTypes === "string" ? existing.allowedFileTypes : JSON.stringify(existing.allowedFileTypes)) : "[]"),
+    createdAt: createdAt,
+    updatedAt: now
   };
+
+  var row = buildRowArray(sheet, cfg, fieldObj);
+  sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+
+  fieldObj.message = "Pertanyaan berhasil diperbarui.";
+  return fieldObj;
 }
 
 function deleteRekrutmenField(data) {
@@ -1440,23 +1462,31 @@ function reorderRekrutmenFields(formId, fieldOrders) {
   var ss = getSpreadsheet();
   var sheet = ss.getSheetByName(cfg.name);
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return { message: "Sheet kosong." };
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return { message: "Sheet kosong." };
 
-  var rows = sheet.getRange(2, 1, lastRow - 1, cfg.keys.length).getValues();
+  var headerMap = getHeaderIndexMap(sheet);
+  var sortOrderColIdx = headerMap["sortorder"] !== undefined ? headerMap["sortorder"] : 7;
+  var updatedAtColIdx = headerMap["updatedat"] !== undefined ? headerMap["updatedat"] : (lastCol - 1);
+  var idColIdx = headerMap["id"] !== undefined ? headerMap["id"] : 0;
+
   var orderMap = {};
   for (var i = 0; i < fieldOrders.length; i++) {
     orderMap[String(fieldOrders[i].id)] = Number(fieldOrders[i].sortOrder);
   }
 
+  var rows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
   for (var r = 0; r < rows.length; r++) {
-    var id = String(rows[r][0]);
+    var id = String(rows[r][idColIdx]);
     if (orderMap[id] !== undefined) {
-      rows[r][7] = orderMap[id];
-      rows[r][14] = new Date().toISOString();
+      rows[r][sortOrderColIdx] = orderMap[id];
+      if (updatedAtColIdx >= 0 && updatedAtColIdx < lastCol) {
+        rows[r][updatedAtColIdx] = new Date().toISOString();
+      }
     }
   }
 
-  sheet.getRange(2, 1, lastRow - 1, cfg.keys.length).setValues(rows);
+  sheet.getRange(2, 1, lastRow - 1, lastCol).setValues(rows);
   return { message: "Urutan berhasil diperbarui." };
 }
 
