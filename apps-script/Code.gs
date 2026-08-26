@@ -262,6 +262,8 @@ function executeAction(action, data) {
       return uploadRekrutmenImage(data);
     case "getRekrutmenImageBase64":
       return getRekrutmenImageBase64(data);
+    case "updateRekrutmenAnswerPhoto":
+      return updateRekrutmenAnswerPhoto(data);
 
     // Rekrutmen Submissions
     case "getRekrutmenSubmissions":
@@ -1806,6 +1808,32 @@ function getRekrutmenAnswers(submissionId) {
     filtered[i] = resolveCandidateAnswerPhoto(filtered[i]);
   }
   return filtered;
+}
+
+function updateRekrutmenAnswerPhoto(data) {
+  if (!data || !data.answerId) throw new Error("ID Jawaban tidak ditemukan.");
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var rowIdx = findRowIndex(ansCfg, data.answerId);
+  if (rowIdx < 0) throw new Error("Data jawaban pendaftar tidak ditemukan.");
+
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(ansCfg.name);
+  var headerMap = getHeaderIndexMap(sheet);
+
+  var fileUrl = String(data.fileUrl || data.fileBase64 || "");
+  var fileName = String(data.fileName || "foto_calon.jpg");
+
+  if (headerMap["fileurl"] !== undefined) {
+    sheet.getRange(rowIdx, headerMap["fileurl"] + 1).setValue(fileUrl);
+  }
+  if (headerMap["filename"] !== undefined) {
+    sheet.getRange(rowIdx, headerMap["filename"] + 1).setValue(fileName);
+  }
+  if (headerMap["value"] !== undefined) {
+    sheet.getRange(rowIdx, headerMap["value"] + 1).setValue(fileName);
+  }
+
+  return { success: true, answerId: data.answerId, fileUrl: fileUrl, fileName: fileName };
 }
 
 function addRekrutmenSubmission(data) {

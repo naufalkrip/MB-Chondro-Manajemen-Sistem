@@ -27,7 +27,7 @@ import { Filter as FilterComp } from "../ui/Filter";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { laporanRekrutmen, laporanRekrutmenDetail } from "../../services/pdf";
-import { getRekrutmenImageBase64Item } from "../../services/api";
+import { getRekrutmenImageBase64Item, updateRekrutmenAnswerPhotoItem, compressImageToSafeHd } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 
 interface SubmissionListProps {
@@ -343,6 +343,41 @@ export function SubmissionList({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleAdminUploadPhoto = async (answerId: string, file: File) => {
+    try {
+      toastSuccess("Mengompres dan memperbarui foto calon...");
+      const safeHdBase64 = await compressImageToSafeHd(file);
+      const res = await updateRekrutmenAnswerPhotoItem({
+        answerId,
+        fileBase64: safeHdBase64,
+        fileName: file.name,
+      });
+      if (res.success) {
+        toastSuccess("Foto calon anggota berhasil diperbarui!");
+        await onRefresh();
+        if (detailOpen) {
+          setDetailOpen((prev) => {
+            if (!prev) return null;
+            return {
+              ...prev,
+              answers: prev.answers.map((a) =>
+                a.id === answerId ? { ...a, fileUrl: safeHdBase64, fileName: file.name, value: file.name } : a
+              ),
+            };
+          });
+        }
+        if (lightboxImage) {
+          setLightboxImage({ url: safeHdBase64, title: "Foto Calon Anggota", fileName: file.name });
+          setLightboxImgError(false);
+        }
+      } else {
+        toastError(res.message || "Gagal memperbarui foto.");
+      }
+    } catch {
+      toastError("Gagal memproses file foto.");
+    }
   };
 
   const columns: Column<RekrutmenSubmissionWithAnswers>[] = [
@@ -841,6 +876,23 @@ export function SubmissionList({
                                 <Eye size={13} /> Buka / Lihat {isImg ? "Foto" : "Berkas"}
                               </button>
                               {isImg && (
+                                <>
+                                  <label
+                                    className="btn btn-ghost btn-sm"
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "#0284c7", padding: "5px 10px", cursor: "pointer", margin: 0 }}
+                                    title="Ganti / Perbarui foto calon anggota"
+                                  >
+                                    📷 Ganti Foto
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      style={{ display: "none" }}
+                                      onChange={(e) => {
+                                        const f = e.target.files?.[0];
+                                        if (f) handleAdminUploadPhoto(ans.id, f);
+                                      }}
+                                    />
+                                  </label>
                                   <button
                                     type="button"
                                     className="btn btn-ghost btn-sm"
@@ -849,6 +901,7 @@ export function SubmissionList({
                                   >
                                     <Download size={13} /> Unduh
                                   </button>
+                                </>
                               )}
                             </div>
                           </div>
@@ -1256,28 +1309,55 @@ export function SubmissionList({
                     <p style={{ fontSize: "12.5px", color: "#94a3b8", maxWidth: 380, margin: 0, lineHeight: 1.5 }}>
                       File foto ini tidak tersimpan di Google Drive atau data telah kedaluwarsa. Calon anggota yang mendaftar sekarang fotonya langsung tersimpan permanen dan utuh.
                     </p>
-                    <button
-                      type="button"
-                      className="btn btn-primary btn-sm"
-                      style={{ marginTop: 6 }}
-                      onClick={async () => {
-                        setLightboxFetching(true);
-                        setLightboxImgError(false);
-                        const match = lightboxImage.url.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
-                        const res = await getRekrutmenImageBase64Item({
-                          fileId: match ? match[1] : undefined,
-                          fileName: lightboxImage.fileName || lightboxImage.title,
-                        });
-                        setLightboxFetching(false);
-                        if (res.success && res.base64) {
-                          setLightboxImage((prev) => prev ? { ...prev, url: res.base64! } : null);
-                        } else {
-                          setLightboxImgError(true);
-                        }
-                      }}
-                    >
-                      🔄 Coba Muat Ulang Foto
-                    </button>
+                    <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        style={{ color: "#ffffff", borderColor: "rgba(255,255,255,0.4)" }}
+                        onClick={async () => {
+                          setLightboxFetching(true);
+                          setLightboxImgError(false);
+                          const match = lightboxImage.url.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+                          const res = await getRekrutmenImageBase64Item({
+                            fileId: match ? match[1] : undefined,
+                            fileName: lightboxImage.fileName || lightboxImage.title,
+                          });
+                          setLightboxFetching(false);
+                          if (res.success && res.base64) {
+                            setLightboxImage((prev) => prev ? { ...prev, url: res.base64! } : null);
+                          } else {
+                            setLightboxImgError(true);
+                          }
+                        }}
+                      >
+                        🔄 Coba Muat Ulang
+                      </button>
+                      <label
+                        className="btn btn-primary btn-sm"
+                        style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", margin: 0 }}
+                      >
+                        📷 Unggah / Ganti Foto
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f && detailOpen) {
+                              const ansPhoto = detailOpen.answers.find(
+                                (a: RekrutmenAnswer & { field?: RekrutmenField }) =>
+                                  a.field?.fieldType === "image" ||
+                                  a.field?.label?.toLowerCase().includes("foto") ||
+                                  a.fileName === lightboxImage.fileName
+                              );
+                              if (ansPhoto) {
+                                handleAdminUploadPhoto(ansPhoto.id, f);
+                              }
+                            }
+                          }}
+                        />
+                      </label>
+                    </div>
                   </div>
                 ) : (
                   <img

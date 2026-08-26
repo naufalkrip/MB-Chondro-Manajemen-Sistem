@@ -944,6 +944,16 @@ export async function getRekrutmenImageBase64Item(payload: { fileId?: string; fi
   }
 }
 
+export async function updateRekrutmenAnswerPhotoItem(data: { answerId: string; fileBase64: string; fileName: string }): Promise<ApiResult<unknown>> {
+  try {
+    const res = await request<unknown>("updateRekrutmenAnswerPhoto", data as unknown as Record<string, unknown>);
+    cacheClear(CACHE_KEYS.REKRUITMEN_SUBMISSIONS);
+    return { success: true, data: res };
+  } catch (e) {
+    return { success: false, message: e instanceof Error ? e.message : "Gagal memperbarui foto." };
+  }
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
