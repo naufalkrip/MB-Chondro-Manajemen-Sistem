@@ -364,10 +364,182 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* 3. STATUS ANGGOTA (INTERACTIVE DONUT) + REKAP KEUANGAN */}
+      {/* 3. REKAPITULASI KEUANGAN ORGANISASI (FULL WIDTH) */}
+      <div className="card card-accent card-accent-blue animate-fade-slide-up stagger-2" style={{ width: "100%" }}>
+        <div className="card-header" style={{ flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <h2>Rekapitulasi Keuangan Organisasi</h2>
+            <p>Arus kas masuk, keluar, dan saldo likuiditas operasional MB Chondro</p>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <Link to="/keuangan" className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 12px" }}>
+              Buku Kas Chondro <ExternalLink size={13} />
+            </Link>
+            <Link to="/keuangan-media" className="btn btn-outline" style={{ fontSize: "12px", padding: "6px 12px" }}>
+              Buku Kas Media <ExternalLink size={13} />
+            </Link>
+          </div>
+        </div>
+
+        {loading || !data ? (
+          <div className="rekap-keuangan-skeleton" style={{ padding: "16px 0" }}>
+            <Skeleton height={46} borderRadius={12} style={{ marginBottom: 16 }} />
+            <Skeleton height={140} borderRadius={14} style={{ marginBottom: 12 }} />
+          </div>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+            {/* TOP LIQUIDITY BANNER */}
+            <div className="liquidity-banner">
+              <div className="liquidity-banner-info">
+                <span className="liquidity-banner-label">Total Saldo Likuiditas (Chondro + Media)</span>
+                <span className="liquidity-banner-value">{formatRupiah(totalLikuiditas)}</span>
+              </div>
+              <div className="liquidity-banner-badge">
+                <TrendingUp size={14} />
+                Total Kas Tersedia
+              </div>
+            </div>
+
+            {/* 2 PROPORTIONAL FINANCE CARDS FULL WIDTH GRID */}
+            <div className="rekap-keuangan-grid">
+              {/* 1. KAS MB CHONDRO */}
+              <div className="finance-modern-card chondro">
+                <div className="finance-card-top">
+                  <div className="finance-card-title-group">
+                    <div className="finance-card-icon">
+                      <Wallet size={18} />
+                    </div>
+                    <div>
+                      <h3 className="finance-card-name">Kas MB Chondro</h3>
+                      <div className="finance-card-tag">Kas Utama Organisasi</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="finance-card-balance-block">
+                  <span className="finance-balance-label">Saldo Kas</span>
+                  <span className="finance-balance-value">{formatRupiah(keuanganChondroSaldo)}</span>
+                </div>
+
+                <div className="finance-flow-grid">
+                  <div className="finance-flow-item inflow">
+                    <span className="finance-flow-label">
+                      <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
+                    </span>
+                    <span className="finance-flow-value positive">
+                      +{formatRupiah(keuanganChondroPemasukan)}
+                    </span>
+                  </div>
+                  <div className="finance-flow-item outflow">
+                    <span className="finance-flow-label">
+                      <ArrowDownRight size={13} style={{ color: "#dc2626" }} /> Pengeluaran
+                    </span>
+                    <span className="finance-flow-value negative">
+                      -{formatRupiah(keuanganChondroPengeluaran)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Flow Ratio Bar */}
+                <div className="finance-ratio-bar-wrapper">
+                  <div className="finance-ratio-bar-track">
+                    <div className="finance-ratio-bar-fill-in" style={{ width: `${chondroInflowPct}%` }} title={`Pemasukan: ${chondroInflowPct}%`} />
+                    <div className="finance-ratio-bar-fill-out" style={{ width: `${chondroOutflowPct}%` }} title={`Pengeluaran: ${chondroOutflowPct}%`} />
+                  </div>
+                  <div className="finance-ratio-bar-labels">
+                    <span style={{ color: "#059669" }}>Masuk {chondroInflowPct}%</span>
+                    <span style={{ color: "#dc2626" }}>Keluar {chondroOutflowPct}%</span>
+                  </div>
+                </div>
+
+                <div className="finance-card-footer">
+                  <button
+                    type="button"
+                    className="finance-action-btn"
+                    onClick={() => setFinanceModal({ type: "chondro" })}
+                  >
+                    Detail Rincian
+                  </button>
+                  <Link to="/keuangan" className="finance-action-btn" style={{ fontWeight: 700 }}>
+                    Kelola Transaksi <ExternalLink size={12} />
+                  </Link>
+                </div>
+              </div>
+
+              {/* 2. KAS MEDIA */}
+              <div className="finance-modern-card media">
+                <div className="finance-card-top">
+                  <div className="finance-card-title-group">
+                    <div className="finance-card-icon">
+                      <WalletCards size={18} />
+                    </div>
+                    <div>
+                      <h3 className="finance-card-name">Kas Media</h3>
+                      <div className="finance-card-tag">Publikasi & Dokumentasi</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="finance-card-balance-block">
+                  <span className="finance-balance-label">Saldo Kas</span>
+                  <span className="finance-balance-value" style={{ color: "#0284c7" }}>
+                    {formatRupiah(keuanganMediaSaldo)}
+                  </span>
+                </div>
+
+                <div className="finance-flow-grid">
+                  <div className="finance-flow-item inflow">
+                    <span className="finance-flow-label">
+                      <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
+                    </span>
+                    <span className="finance-flow-value positive">
+                      +{formatRupiah(keuanganMediaPemasukan)}
+                    </span>
+                  </div>
+                  <div className="finance-flow-item outflow">
+                    <span className="finance-flow-label">
+                      <ArrowDownRight size={13} style={{ color: "#dc2626" }} /> Pengeluaran
+                    </span>
+                    <span className="finance-flow-value negative">
+                      -{formatRupiah(keuanganMediaPengeluaran)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Flow Ratio Bar */}
+                <div className="finance-ratio-bar-wrapper">
+                  <div className="finance-ratio-bar-track">
+                    <div className="finance-ratio-bar-fill-in" style={{ width: `${mediaInflowPct}%` }} title={`Pemasukan: ${mediaInflowPct}%`} />
+                    <div className="finance-ratio-bar-fill-out" style={{ width: `${mediaOutflowPct}%` }} title={`Pengeluaran: ${mediaOutflowPct}%`} />
+                  </div>
+                  <div className="finance-ratio-bar-labels">
+                    <span style={{ color: "#059669" }}>Masuk {mediaInflowPct}%</span>
+                    <span style={{ color: "#dc2626" }}>Keluar {mediaOutflowPct}%</span>
+                  </div>
+                </div>
+
+                <div className="finance-card-footer">
+                  <button
+                    type="button"
+                    className="finance-action-btn"
+                    onClick={() => setFinanceModal({ type: "media" })}
+                  >
+                    Detail Rincian
+                  </button>
+                  <Link to="/keuangan-media" className="finance-action-btn" style={{ fontWeight: 700 }}>
+                    Kelola Transaksi <ExternalLink size={12} />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* 4. STRUKTUR ANGGOTA & LOG AKTIVITAS TERKINI (2-COLUMN GRID) */}
       <div className="dash-main-grid" style={{ alignItems: "stretch" }}>
         {/* LEFT COLUMN: STATUS & DISTRIBUSI ANGGOTA */}
-        <div className="card card-accent card-accent-green animate-fade-slide-up stagger-2" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="card card-accent card-accent-green animate-fade-slide-up stagger-3" style={{ display: "flex", flexDirection: "column" }}>
           <div className="card-header" style={{ flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2>Struktur & Distribusi Anggota</h2>
@@ -486,167 +658,49 @@ export function Dashboard() {
           )}
         </div>
 
-        {/* RIGHT COLUMN: REKAP KEUANGAN ORGANISASI */}
-        <div className="card card-accent card-accent-blue animate-fade-slide-up stagger-3" style={{ display: "flex", flexDirection: "column" }}>
+        {/* RIGHT COLUMN: LOG & AKTIVITAS TERKINI */}
+        <div className="card card-accent animate-fade-slide-up stagger-4" style={{ display: "flex", flexDirection: "column" }}>
           <div className="card-header">
             <div>
-              <h2>Rekapitulasi Keuangan</h2>
-              <p>Arus kas masuk & saldo likuiditas organisasi</p>
+              <h2>Log & Aktivitas Terkini</h2>
+              <p>Riwayat kegiatan & mutasi MB Chondro</p>
             </div>
           </div>
-
-          {loading || !data ? (
-            <div className="rekap-keuangan-skeleton" style={{ padding: "16px 0" }}>
-              <Skeleton height={46} borderRadius={12} style={{ marginBottom: 16 }} />
-              <Skeleton height={140} borderRadius={14} style={{ marginBottom: 12 }} />
-              <Skeleton height={140} borderRadius={14} />
+          {loading ? (
+            <div className="aktivitas-list">
+              <Skeleton height={48} />
+              <Skeleton height={48} />
+              <Skeleton height={48} />
+              <Skeleton height={48} />
+            </div>
+          ) : aktivitas.length === 0 ? (
+            <div className="aktivitas-empty">
+              <Activity size={32} style={{ color: "#98a1b0", marginBottom: 8 }} />
+              <p style={{ fontSize: 13, color: "#98a1b0", margin: 0 }}>Belum ada aktivitas terbaru</p>
+              <p style={{ fontSize: 11, color: "#98a1b0", marginTop: 4 }}>
+                Seluruh mutasi keuangan, sesi absensi, dan data anggota baru akan tercatat di sini.
+              </p>
             </div>
           ) : (
-            <div style={{ display: "flex", flexDirection: "column", gap: 14, flex: 1 }}>
-              {/* TOP LIQUIDITY BANNER */}
-              <div className="liquidity-banner">
-                <div className="liquidity-banner-info">
-                  <span className="liquidity-banner-label">Total Saldo Likuiditas (Chondro + Media)</span>
-                  <span className="liquidity-banner-value">{formatRupiah(totalLikuiditas)}</span>
+            <div className="aktivitas-list" style={{ flex: 1 }}>
+              {aktivitas.map((a) => (
+                <div key={a.id} className="aktivitas-item">
+                  <span
+                    className="aktivitas-dot"
+                    style={{
+                      background: a.warna,
+                      boxShadow: `0 0 0 3px ${a.warna}20`,
+                    }}
+                  />
+                  <div className="aktivitas-body">
+                    <div className="aktivitas-title" style={{ fontWeight: 600, color: "var(--navy-900, #0f172a)" }}>
+                      {a.judul}
+                    </div>
+                    <div className="aktivitas-desc">{a.deskripsi}</div>
+                  </div>
+                  <span className="aktivitas-date">{formatTanggalPendek(a.tanggal)}</span>
                 </div>
-                <div className="liquidity-banner-badge">
-                  <TrendingUp size={14} />
-                  Total Kas
-                </div>
-              </div>
-
-              {/* 2 PROPORTIONAL FINANCE CARDS */}
-              <div className="rekap-keuangan-grid">
-                {/* 1. KAS MB CHONDRO */}
-                <div className="finance-modern-card chondro">
-                  <div className="finance-card-top">
-                    <div className="finance-card-title-group">
-                      <div className="finance-card-icon">
-                        <Wallet size={18} />
-                      </div>
-                      <div>
-                        <h3 className="finance-card-name">Kas MB Chondro</h3>
-                        <div className="finance-card-tag">Kas Utama Organisasi</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="finance-card-balance-block">
-                    <span className="finance-balance-label">Saldo Kas</span>
-                    <span className="finance-balance-value">{formatRupiah(keuanganChondroSaldo)}</span>
-                  </div>
-
-                  <div className="finance-flow-grid">
-                    <div className="finance-flow-item inflow">
-                      <span className="finance-flow-label">
-                        <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
-                      </span>
-                      <span className="finance-flow-value positive">
-                        +{formatRupiah(keuanganChondroPemasukan)}
-                      </span>
-                    </div>
-                    <div className="finance-flow-item outflow">
-                      <span className="finance-flow-label">
-                        <ArrowDownRight size={13} style={{ color: "#dc2626" }} /> Pengeluaran
-                      </span>
-                      <span className="finance-flow-value negative">
-                        -{formatRupiah(keuanganChondroPengeluaran)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Flow Ratio Bar */}
-                  <div className="finance-ratio-bar-wrapper">
-                    <div className="finance-ratio-bar-track">
-                      <div className="finance-ratio-bar-fill-in" style={{ width: `${chondroInflowPct}%` }} title={`Pemasukan: ${chondroInflowPct}%`} />
-                      <div className="finance-ratio-bar-fill-out" style={{ width: `${chondroOutflowPct}%` }} title={`Pengeluaran: ${chondroOutflowPct}%`} />
-                    </div>
-                    <div className="finance-ratio-bar-labels">
-                      <span style={{ color: "#059669" }}>Masuk {chondroInflowPct}%</span>
-                      <span style={{ color: "#dc2626" }}>Keluar {chondroOutflowPct}%</span>
-                    </div>
-                  </div>
-
-                  <div className="finance-card-footer">
-                    <button
-                      type="button"
-                      className="finance-action-btn"
-                      onClick={() => setFinanceModal({ type: "chondro" })}
-                    >
-                      Detail Rincian
-                    </button>
-                    <Link to="/keuangan" className="finance-action-btn" style={{ fontWeight: 700 }}>
-                      Kelola Transaksi <ExternalLink size={12} />
-                    </Link>
-                  </div>
-                </div>
-
-                {/* 2. KAS MEDIA */}
-                <div className="finance-modern-card media">
-                  <div className="finance-card-top">
-                    <div className="finance-card-title-group">
-                      <div className="finance-card-icon">
-                        <WalletCards size={18} />
-                      </div>
-                      <div>
-                        <h3 className="finance-card-name">Kas Media</h3>
-                        <div className="finance-card-tag">Publikasi & Dokumentasi</div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="finance-card-balance-block">
-                    <span className="finance-balance-label">Saldo Kas</span>
-                    <span className="finance-balance-value" style={{ color: "#0284c7" }}>
-                      {formatRupiah(keuanganMediaSaldo)}
-                    </span>
-                  </div>
-
-                  <div className="finance-flow-grid">
-                    <div className="finance-flow-item inflow">
-                      <span className="finance-flow-label">
-                        <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
-                      </span>
-                      <span className="finance-flow-value positive">
-                        +{formatRupiah(keuanganMediaPemasukan)}
-                      </span>
-                    </div>
-                    <div className="finance-flow-item outflow">
-                      <span className="finance-flow-label">
-                        <ArrowDownRight size={13} style={{ color: "#dc2626" }} /> Pengeluaran
-                      </span>
-                      <span className="finance-flow-value negative">
-                        -{formatRupiah(keuanganMediaPengeluaran)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Flow Ratio Bar */}
-                  <div className="finance-ratio-bar-wrapper">
-                    <div className="finance-ratio-bar-track">
-                      <div className="finance-ratio-bar-fill-in" style={{ width: `${mediaInflowPct}%` }} title={`Pemasukan: ${mediaInflowPct}%`} />
-                      <div className="finance-ratio-bar-fill-out" style={{ width: `${mediaOutflowPct}%` }} title={`Pengeluaran: ${mediaOutflowPct}%`} />
-                    </div>
-                    <div className="finance-ratio-bar-labels">
-                      <span style={{ color: "#059669" }}>Masuk {mediaInflowPct}%</span>
-                      <span style={{ color: "#dc2626" }}>Keluar {mediaOutflowPct}%</span>
-                    </div>
-                  </div>
-
-                  <div className="finance-card-footer">
-                    <button
-                      type="button"
-                      className="finance-action-btn"
-                      onClick={() => setFinanceModal({ type: "media" })}
-                    >
-                      Detail Rincian
-                    </button>
-                    <Link to="/keuangan-media" className="finance-action-btn" style={{ fontWeight: 700 }}>
-                      Kelola Transaksi <ExternalLink size={12} />
-                    </Link>
-                  </div>
-                </div>
-              </div>
+              ))}
             </div>
           )}
         </div>
