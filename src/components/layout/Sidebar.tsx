@@ -3,6 +3,7 @@ import {
   ClipboardCheck,
   FileText,
   LayoutDashboard,
+  LogOut,
   UserPlus,
   Users,
   Wallet,
@@ -10,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import logo from "../../aset/logo.png";
+import { useAuth } from "../../contexts/AuthContext";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -27,6 +29,14 @@ interface SidebarProps {
 }
 
 export function Sidebar({ open, onClose }: SidebarProps) {
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    if (window.confirm("Apakah Anda yakin ingin keluar dari sistem MB Chondro?")) {
+      logout();
+    }
+  };
+
   return (
     <>
       {open && <div className="sidebar-backdrop" onClick={onClose} />}
@@ -57,6 +67,29 @@ export function Sidebar({ open, onClose }: SidebarProps) {
             </NavLink>
           ))}
         </nav>
+
+        {/* Logged in User Card */}
+        {user && (
+          <div className="sidebar-user-block">
+            <div className="sidebar-user-avatar">
+              {user.nama ? user.nama.charAt(0).toUpperCase() : "A"}
+            </div>
+            <div className="sidebar-user-info">
+              <span className="sidebar-user-name">{user.nama || user.username}</span>
+              <span className="sidebar-user-role">@{user.username} · {user.role || "Admin"}</span>
+            </div>
+            <button
+              type="button"
+              className="sidebar-logout-btn"
+              onClick={handleLogout}
+              title="Keluar dari Sistem"
+              aria-label="Logout"
+            >
+              <LogOut size={16} />
+            </button>
+          </div>
+        )}
+
         <div className="sidebar-footer">
           <span>© {new Date().getFullYear()} MB Chondro</span>
           <span>v1.0.0</span>

@@ -222,3 +222,17 @@ export interface ApiError {
 }
 
 export type ApiResult<T> = ApiSuccess<T> | ApiError;
+
+export interface User {
+  id: string;
+  username: string;
+  nama: string;
+  role: "admin" | "operator" | string;
+  status: "Aktif" | "Tidak Aktif" | string;
+  token?: string;
+}
+
+export interface AuthSession {
+  user: User;
+  token: string;
+}

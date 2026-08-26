@@ -1,5 +1,8 @@
 import { Route, Routes } from "react-router-dom";
+import { AuthProvider } from "./contexts/AuthContext";
+import { ProtectedRoute } from "./components/auth/ProtectedRoute";
 import { Layout } from "./components/layout/Layout";
+import { Login } from "./pages/Login";
 import { Dashboard } from "./pages/Dashboard";
 import { Anggota } from "./pages/Anggota";
 import { Absensi } from "./pages/Absensi";
@@ -14,31 +17,38 @@ import { NotFound } from "./pages/NotFound";
 
 export default function App() {
   return (
-    <Routes>
-      {/* Standalone Public Recruitment Form (No Admin Sidebar/Header) */}
-      <Route path="/rekrutmen/form" element={<PublicForm />} />
-      <Route path="/rekrutmen/form/:id" element={<PublicForm />} />
+    <AuthProvider>
+      <Routes>
+        {/* Public Login Route */}
+        <Route path="/login" element={<Login />} />
 
-      {/* Internal Admin Management Routes */}
-      <Route
-        path="/*"
-        element={
-          <Layout>
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/anggota" element={<Anggota />} />
-              <Route path="/absensi" element={<Absensi />} />
-              <Route path="/keuangan" element={<KeuanganChondro />} />
-              <Route path="/keuangan-media" element={<KeuanganMedia />} />
-              <Route path="/transaksi" element={<Transaksi />} />
-              <Route path="/transaksi/:id" element={<TransaksiDetailPage />} />
-              <Route path="/rekrutmen" element={<Rekrutmen />} />
-              <Route path="/rekrutmen/daftar" element={<RekrutmenDaftar />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </Layout>
-        }
-      />
-    </Routes>
+        {/* Standalone Public Recruitment Form (No Admin Sidebar/Header, No Auth Required) */}
+        <Route path="/rekrutmen/form" element={<PublicForm />} />
+        <Route path="/rekrutmen/form/:id" element={<PublicForm />} />
+
+        {/* Internal Protected Admin Management Routes */}
+        <Route
+          path="/*"
+          element={
+            <ProtectedRoute>
+              <Layout>
+                <Routes>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/anggota" element={<Anggota />} />
+                  <Route path="/absensi" element={<Absensi />} />
+                  <Route path="/keuangan" element={<KeuanganChondro />} />
+                  <Route path="/keuangan-media" element={<KeuanganMedia />} />
+                  <Route path="/transaksi" element={<Transaksi />} />
+                  <Route path="/transaksi/:id" element={<TransaksiDetailPage />} />
+                  <Route path="/rekrutmen" element={<Rekrutmen />} />
+                  <Route path="/rekrutmen/daftar" element={<RekrutmenDaftar />} />
+                  <Route path="*" element={<NotFound />} />
+                </Routes>
+              </Layout>
+            </ProtectedRoute>
+          }
+        />
+      </Routes>
+    </AuthProvider>
   );
 }

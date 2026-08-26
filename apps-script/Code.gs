@@ -109,6 +109,14 @@ var SHEET_CONFIG = [
     headers: ["id", "submissionId", "fieldId", "value", "fileUrl", "fileName", "fileType", "fileSize", "createdAt"],
     keys: ["id", "submissionId", "fieldId", "value", "fileUrl", "fileName", "fileType", "fileSize", "createdAt"],
     idCol: 0
+  },
+  {
+    key: "USERS",
+    name: "USERS",
+    idPrefix: "USR",
+    headers: ["id", "username", "password", "nama", "role", "status", "createdAt", "updatedAt"],
+    keys: ["id", "username", "password", "nama", "role", "status", "createdAt", "updatedAt"],
+    idCol: 0
   }
 ];
 
@@ -266,6 +274,18 @@ function executeAction(action, data) {
       return getRekrutmenAnswers(data.submissionId);
     case "getRekrutmenStats":
       return getRekrutmenStats(data.formId);
+
+    // Users & Autentikasi
+    case "login":
+      return loginUser(data.username, data.password);
+    case "getUsers":
+      return getUsers();
+    case "addUser":
+      return addUser(data);
+    case "updateUser":
+      return updateUser(data);
+    case "deleteUser":
+      return deleteUser(data);
 
     default:
       throw new Error("Action tidak dikenal: " + action);
@@ -1637,4 +1657,110 @@ function getRekrutmenStats(formId) {
     lolos: lolos,
     tidakLolos: tidakLolos
   };
+}
+
+// ============================================================
+// MODUL USERS & AUTENTIKASI
+// ============================================================
+
+function loginUser(username, password) {
+  if (!username || !password) {
+    throw new Error("Username dan password wajib diisi.");
+  }
+
+  var cfg = getSheetConfig("USERS");
+  var sheet = getOrCreateSheet(cfg);
+
+  // Pastikan akun admin default dibuat jika sheet masih kosong
+  if (sheet.getLastRow() <= 1) {
+    var now = new Date().toISOString();
+    sheet.appendRow(["USR-001", "admin", "admin", "Administrator MB Chondro", "admin", "Aktif", now, now]);
+  }
+
+  var users = readRows(cfg);
+  var found = null;
+
+  for (var i = 0; i < users.length; i++) {
+    var u = users[i];
+    if (
+      String(u.username || "").trim().toLowerCase() === String(username).trim().toLowerCase() &&
+      String(u.password || "").trim() === String(password).trim()
+    ) {
+      found = u;
+      break;
+    }
+  }
+
+  if (!found) {
+    throw new Error("Username atau password salah.");
+  }
+
+  if (String(found.status || "").toLowerCase() !== "aktif") {
+    throw new Error("Akun ini berstatus tidak aktif. Hubungi administrator.");
+  }
+
+  var tokenPayload = found.id + ":" + found.username + ":" + new Date().getTime();
+  var token = Utilities.base64Encode(tokenPayload);
+
+  return {
+    id: found.id,
+    username: found.username,
+    nama: found.nama || found.username,
+    role: found.role || "admin",
+    status: found.status || "Aktif",
+    token: token
+  };
+}
+
+function getUsers() {
+  var cfg = getSheetConfig("USERS");
+  var users = readRows(cfg);
+  return users.map(function(u) {
+    return {
+      id: u.id,
+      username: u.username,
+      nama: u.nama,
+      role: u.role,
+      status: u.status,
+      createdAt: u.createdAt,
+      updatedAt: u.updatedAt
+    };
+  });
+}
+
+function addUser(data) {
+  if (!data.username || !data.password) {
+    throw new Error("Username dan password wajib diisi.");
+  }
+  var cfg = getSheetConfig("USERS");
+  var users = readRows(cfg);
+  for (var i = 0; i < users.length; i++) {
+    if (String(users[i].username).toLowerCase() === String(data.username).toLowerCase()) {
+      throw new Error("Username '" + data.username + "' sudah digunakan.");
+    }
+  }
+  var now = new Date().toISOString();
+  var item = {
+    username: String(data.username).trim(),
+    password: String(data.password).trim(),
+    nama: data.nama || data.username,
+    role: data.role || "admin",
+    status: data.status || "Aktif",
+    createdAt: now,
+    updatedAt: now
+  };
+  return createRow(cfg, item);
+}
+
+function updateUser(data) {
+  if (!data.id) throw new Error("ID Pengguna tidak ditemukan.");
+  var cfg = getSheetConfig("USERS");
+  data.updatedAt = new Date().toISOString();
+  return updateRow(cfg, data.id, data);
+}
+
+function deleteUser(data) {
+  if (!data.id) throw new Error("ID Pengguna tidak ditemukan.");
+  var cfg = getSheetConfig("USERS");
+  return deleteRow(cfg, data.id);
 }

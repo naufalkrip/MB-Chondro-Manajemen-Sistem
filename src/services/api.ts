@@ -19,6 +19,7 @@ import type {
   RekrutmenFieldOption,
   RekrutmenFieldType,
   RekrutmenSubmissionStatus,
+  User,
 } from "../types";
 import { normAbsensi, normAnggota, normTransaksi } from "../utils/format";
 import { CACHE_KEYS, cacheSet, cacheMutate, cacheClear } from "./cache";
@@ -86,6 +87,11 @@ const VALID_ACTIONS = new Set([
   "getRekrutmenSubmissionDetail",
   "getRekrutmenAnswers",
   "getRekrutmenStats",
+  "login",
+  "getUsers",
+  "addUser",
+  "updateUser",
+  "deleteUser",
 ]);
 
 type ActionName = (typeof VALID_ACTIONS extends Set<infer T> ? T : never) & string;
@@ -942,4 +948,27 @@ export async function getDashboard(): Promise<DashboardData> {
   };
   cacheSet(CACHE_KEYS.DASHBOARD, dashboard);
   return dashboard;
+}
+
+// ---------------- AUTENTIKASI & USERS ----------------
+
+export async function loginApi(username: string, password: string): Promise<User> {
+  const res = await request<User>("login", { username, password });
+  return res;
+}
+
+export async function getUsersApi(): Promise<User[]> {
+  return await request<User[]>("getUsers");
+}
+
+export async function addUserApi(data: Partial<User> & { password: string }): Promise<User> {
+  return await request<User>("addUser", data as unknown as Record<string, unknown>);
+}
+
+export async function updateUserApi(data: Partial<User> & { id: string }): Promise<User> {
+  return await request<User>("updateUser", data as unknown as Record<string, unknown>);
+}
+
+export async function deleteUserApi(id: string): Promise<{ message: string }> {
+  return await request<{ message: string }>("deleteUser", { id });
 }
