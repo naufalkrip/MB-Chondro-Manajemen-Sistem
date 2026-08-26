@@ -1,7 +1,7 @@
-import { Navigate, useLocation } from "react-router-dom";
+import { Navigate, useLocation, Outlet } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 
-export function ProtectedRoute({ children }: { children: JSX.Element }) {
+export function ProtectedRoute({ children }: { children?: JSX.Element }) {
   const { isAuthenticated } = useAuth();
   const location = useLocation();
 
@@ -10,5 +10,5 @@ export function ProtectedRoute({ children }: { children: JSX.Element }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  return children;
+  return children ?? <Outlet />;
 }

@@ -28,26 +28,23 @@ export default function App() {
 
         {/* Internal Protected Admin Management Routes */}
         <Route
-          path="/*"
           element={
             <ProtectedRoute>
-              <Layout>
-                <Routes>
-                  <Route path="/" element={<Dashboard />} />
-                  <Route path="/anggota" element={<Anggota />} />
-                  <Route path="/absensi" element={<Absensi />} />
-                  <Route path="/keuangan" element={<KeuanganChondro />} />
-                  <Route path="/keuangan-media" element={<KeuanganMedia />} />
-                  <Route path="/transaksi" element={<Transaksi />} />
-                  <Route path="/transaksi/:id" element={<TransaksiDetailPage />} />
-                  <Route path="/rekrutmen" element={<Rekrutmen />} />
-                  <Route path="/rekrutmen/daftar" element={<RekrutmenDaftar />} />
-                  <Route path="*" element={<NotFound />} />
-                </Routes>
-              </Layout>
+              <Layout />
             </ProtectedRoute>
           }
-        />
+        >
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/anggota" element={<Anggota />} />
+          <Route path="/absensi" element={<Absensi />} />
+          <Route path="/keuangan" element={<KeuanganChondro />} />
+          <Route path="/keuangan-media" element={<KeuanganMedia />} />
+          <Route path="/transaksi" element={<Transaksi />} />
+          <Route path="/transaksi/:id" element={<TransaksiDetailPage />} />
+          <Route path="/rekrutmen" element={<Rekrutmen />} />
+          <Route path="/rekrutmen/daftar" element={<RekrutmenDaftar />} />
+          <Route path="*" element={<NotFound />} />
+        </Route>
       </Routes>
     </AuthProvider>
   );
