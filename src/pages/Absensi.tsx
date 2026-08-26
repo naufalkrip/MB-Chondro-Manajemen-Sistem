@@ -1,7 +1,8 @@
 import { Fragment, useCallback, useMemo, useState } from "react";
 import {
-  CalendarOff,
   CheckCircle2,
+  CalendarOff,
+  Download,
   Eye,
   FileText,
   Pencil,
@@ -21,7 +22,6 @@ import {
   buatRingkasanSesi,
   buatSesiAbsensi,
   filterAbsensiPeriode,
-  formatBulanTahun,
   formatRentangTanggal,
   formatTanggal,
   formatTanggalPanjang,
@@ -29,18 +29,16 @@ import {
 } from "../utils/format";
 import { useApi, usePagination } from "../hooks/useApi";
 import { useToast } from "../contexts/ToastContext";
-import { useSetHeaderAction } from "../contexts/HeaderActionContext";
 import { DataTable } from "../components/ui/DataTable";
 import type { Column } from "../components/ui/DataTable";
 import { SearchBar } from "../components/ui/SearchBar";
 import { Filter } from "../components/ui/Filter";
 import { DatePicker } from "../components/ui/DatePicker";
+import { DateRangePicker } from "../components/ui/DateRangePicker";
 import { StatusBadge } from "../components/ui/StatusBadge";
 import { Modal } from "../components/ui/Modal";
 import { ConfirmDialog } from "../components/ui/ConfirmDialog";
-import { StatCard } from "../components/ui/StatCard";
 import { Pagination } from "../components/ui/Pagination";
-import { StatCardSkeleton } from "../components/ui/Skeleton";
 import { DownloadPdfButton } from "../components/ui/DownloadPdfButton";
 import { EmptyState } from "../components/ui/EmptyState";
 
@@ -51,6 +49,24 @@ const KEGIATAN_SUGGEST = [
   "Acara Desa Lambur",
   "Sekretariat MB Chondro",
 ];
+
+const PILIHAN_BULAN = [
+  { value: "01", label: "Januari" },
+  { value: "02", label: "Februari" },
+  { value: "03", label: "Maret" },
+  { value: "04", label: "April" },
+  { value: "05", label: "Mei" },
+  { value: "06", label: "Juni" },
+  { value: "07", label: "Juli" },
+  { value: "08", label: "Agustus" },
+  { value: "09", label: "September" },
+  { value: "10", label: "Oktober" },
+  { value: "11", label: "November" },
+  { value: "12", label: "Desember" },
+];
+
+const currentYear = new Date().getFullYear();
+const PILIHAN_TAHUN = Array.from({ length: 8 }, (_, i) => currentYear - 4 + i);
 
 type PeriodeType = "" | "bulanIni" | "bulanLalu" | "custom";
 
@@ -107,6 +123,11 @@ export function Absensi() {
   const [customDari, setCustomDari] = useState("");
   const [customSampai, setCustomSampai] = useState("");
 
+  // Ringkasan kehadiran - filter rentang waktu
+  const [summaryRange, setSummaryRange] = useState<{ dari?: string; sampai?: string; preset?: string }>({
+    preset: "bulanIni",
+  });
+
   // Modal detail / edit / delete
   const [detailSesi, setDetailSesi] = useState<SesiAbsensi | null>(null);
   const [editSesi, setEditSesi] = useState<SesiAbsensi | null>(null);
@@ -119,12 +140,17 @@ export function Absensi() {
   // Modal pilih rentang PDF
   const [pdfOpen, setPdfOpen] = useState(false);
   const [pdfMode, setPdfMode] = useState<"" | "bulan" | "custom">("");
-  const [pdfBulan, setPdfBulan] = useState("");
+  const [pdfSelectedBulan, setPdfSelectedBulan] = useState(String(new Date().getMonth() + 1).padStart(2, "0"));
+  const [pdfSelectedTahun, setPdfSelectedTahun] = useState(String(new Date().getFullYear()));
   const [pdfDari, setPdfDari] = useState("");
   const [pdfSampai, setPdfSampai] = useState("");
   const [pdfGenerating, setPdfGenerating] = useState(false);
 
-  const stat = useMemo(() => hitungStatKehadiran(absensi), [absensi]);
+  // Ringkasan kehadiran berdasarkan filter rentang waktu
+  const summaryStat = useMemo(() => {
+    const filtered = filterAbsensiPeriode(absensi, summaryRange.dari, summaryRange.sampai);
+    return hitungStatKehadiran(filtered);
+  }, [absensi, summaryRange.dari, summaryRange.sampai]);
 
   const divisiOptions = useMemo(() => {
     const set = new Set(anggota.map((a) => a.divisi).filter(Boolean));
@@ -194,13 +220,13 @@ export function Absensi() {
   const pagedSesi = sesiFiltered.slice(sesiPagination.start, sesiPagination.end);
 
   const pdfRange = useMemo(() => {
-    if (pdfMode === "bulan" && pdfBulan) {
-      const [tahun, bulan] = pdfBulan.split("-");
-      const lastDay = new Date(Number(tahun), Number(bulan), 0).getDate();
+    if (pdfMode === "bulan" && pdfSelectedBulan && pdfSelectedTahun) {
+      const lastDay = new Date(Number(pdfSelectedTahun), Number(pdfSelectedBulan), 0).getDate();
+      const namaBulan = PILIHAN_BULAN.find((b) => b.value === pdfSelectedBulan)?.label || "Bulan";
       return {
-        dari: `${pdfBulan}-01`,
-        sampai: `${pdfBulan}-${String(lastDay).padStart(2, "0")}`,
-        label: formatBulanTahun(`${pdfBulan}-01`),
+        dari: `${pdfSelectedTahun}-${pdfSelectedBulan}-01`,
+        sampai: `${pdfSelectedTahun}-${pdfSelectedBulan}-${String(lastDay).padStart(2, "0")}`,
+        label: `${namaBulan} ${pdfSelectedTahun}`,
       };
     }
     if (pdfMode === "custom") {
@@ -211,15 +237,15 @@ export function Absensi() {
       };
     }
     return { dari: undefined, sampai: undefined, label: "Semua Periode" };
-  }, [pdfMode, pdfBulan, pdfDari, pdfSampai]);
+  }, [pdfMode, pdfSelectedBulan, pdfSelectedTahun, pdfDari, pdfSampai]);
 
   const handleDownloadPdf = useCallback(() => {
     setPdfOpen(true);
   }, []);
 
   const handleGeneratePdf = async () => {
-    if (pdfMode === "bulan" && !pdfBulan) {
-      toastError("Silakan pilih bulan terlebih dahulu.");
+    if (pdfMode === "bulan" && (!pdfSelectedBulan || !pdfSelectedTahun)) {
+      toastError("Silakan pilih bulan dan tahun terlebih dahulu.");
       return;
     }
     if (pdfMode === "custom" && (!pdfDari || !pdfSampai)) {
@@ -238,11 +264,6 @@ export function Absensi() {
     }
   };
 
-  const headerAction = useMemo(
-    () => <DownloadPdfButton onGenerate={handleDownloadPdf} />,
-    [handleDownloadPdf]
-  );
-  useSetHeaderAction(headerAction);
 
   const validateForm = () => {
     const err: Record<string, string> = {};
@@ -433,27 +454,244 @@ export function Absensi() {
 
   return (
     <div className="page-grid">
-      <div className="stat-grid">
-        {loading && !absensiData ? (
-          <>
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-            <StatCardSkeleton />
-          </>
-        ) : (
-          <>
-            <StatCard label="Total Hadir" value={String(stat.hadir)} icon={<CheckCircle2 size={20} />} accent="green" />
-            <StatCard label="Total Izin" value={String(stat.izin)} icon={<FileText size={20} />} accent="blue" />
-            <StatCard label="Total Sakit" value={String(stat.sakit)} icon={<Thermometer size={20} />} accent="amber" />
-            <StatCard label="Total Cuti" value={String(stat.cuti)} icon={<CalendarOff size={20} />} accent="purple" />
-            <StatCard label="Total Alpa" value={String(stat.alpa)} icon={<XCircle size={20} />} accent="red" />
-            <StatCard label="Persentase Kehadiran" value={`${stat.persentase}%`} icon={<Percent size={20} />} accent="red" sub={`${stat.total} catatan`} />
-          </>
-        )}
+      {/* RINGKASAN KEHADIRAN - SATU PANEL MERAH */}
+      <div className="summary-panel">
+        <div className="summary-panel-header">
+          <div>
+            <h3>Ringkasan Kehadiran</h3>
+            <p>Pilih rentang waktu untuk melihat ringkasan data</p>
+          </div>
+          <DateRangePicker
+            value={summaryRange}
+            onChange={setSummaryRange}
+          />
+        </div>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(min(100%, 140px), 1fr))",
+            gap: 12,
+          }}
+        >
+          {/* Hadir */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <CheckCircle2 size={16} />
+              </div>
+              <span>Hadir</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.hadir.toLocaleString("id-ID")}
+            </div>
+          </div>
+
+          {/* Izin */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <FileText size={16} />
+              </div>
+              <span>Izin</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.izin.toLocaleString("id-ID")}
+            </div>
+          </div>
+
+          {/* Sakit */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <Thermometer size={16} />
+              </div>
+              <span>Sakit</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.sakit.toLocaleString("id-ID")}
+            </div>
+          </div>
+
+          {/* Cuti */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <CalendarOff size={16} />
+              </div>
+              <span>Cuti</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.cuti.toLocaleString("id-ID")}
+            </div>
+          </div>
+
+          {/* Alpa */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.12)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.18)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <XCircle size={16} />
+              </div>
+              <span>Alpa</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.alpa.toLocaleString("id-ID")}
+            </div>
+          </div>
+
+          {/* Persentase Kehadiran */}
+          <div
+            style={{
+              background: "rgba(255, 255, 255, 0.16)",
+              backdropFilter: "blur(4px)",
+              borderRadius: 10,
+              padding: "14px 16px",
+              border: "1px solid rgba(255, 255, 255, 0.25)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: "rgba(255, 255, 255, 0.9)", fontSize: 12.5, fontWeight: 600 }}>
+              <div
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 8,
+                  background: "rgba(255, 255, 255, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#ffffff",
+                  flexShrink: 0,
+                }}
+              >
+                <Percent size={16} />
+              </div>
+              <span>Kehadiran ({summaryStat.total} catatan)</span>
+            </div>
+            <div style={{ fontSize: "clamp(18px, 4vw, 24px)", fontWeight: 700, color: "#ffffff", marginTop: 4 }}>
+              {summaryStat.persentase}%
+            </div>
+          </div>
+        </div>
       </div>
 
+      {/* INPUT ABSENSI */}
       <div className="card">
         <div className="card-header">
           <div>
@@ -567,6 +805,7 @@ export function Absensi() {
         </div>
       </div>
 
+      {/* RIWAYAT ABSENSI */}
       <div className="card">
         <div className="card-header">
           <div>
@@ -750,9 +989,10 @@ export function Absensi() {
         )}
       </Modal>
 
+      {/* Modal Unduh PDF Laporan Absensi */}
       <Modal
         open={pdfOpen}
-        title="Unduh PDF Riwayat Absensi"
+        title="Unduh Laporan PDF Absensi"
         onClose={() => setPdfOpen(false)}
         size="md"
         footer={
@@ -761,77 +1001,166 @@ export function Absensi() {
               Batal
             </button>
             <button className="btn btn-primary" onClick={handleGeneratePdf} disabled={pdfGenerating}>
-              <Save size={17} />
-              {pdfGenerating ? "Membuat PDF..." : "Unduh PDF"}
+              <Download size={16} />
+              {pdfGenerating ? "Membuat PDF..." : "Unduh PDF Laporan"}
             </button>
           </>
         }
       >
-        <div className="form-section-title">Pilih Periode Laporan</div>
-        <p className="form-section-sub">Tentukan rentang tanggal yang akan dimasukkan ke dalam laporan PDF</p>
-
-        <div className="segment-group" style={{ marginBottom: 16 }}>
-          <button
-            type="button"
-            className={`segment-btn${pdfMode === "" ? " active" : ""}`}
-            onClick={() => setPdfMode("")}
-          >
-            Semua Periode
-          </button>
-          <button
-            type="button"
-            className={`segment-btn${pdfMode === "bulan" ? " active" : ""}`}
-            onClick={() => setPdfMode("bulan")}
-          >
-            Per Bulan
-          </button>
-          <button
-            type="button"
-            className={`segment-btn${pdfMode === "custom" ? " active" : ""}`}
-            onClick={() => setPdfMode("custom")}
-          >
-            Custom Rentang
-          </button>
-        </div>
-
-        {pdfMode === "bulan" && (
-          <div className="form-group">
-            <label>Bulan & Tahun</label>
-            <input
-              type="month"
-              value={pdfBulan}
-              onChange={(e) => setPdfBulan(e.target.value)}
-              aria-label="Pilih bulan"
-            />
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--navy-900)" }}>Pilih Periode Laporan</div>
+            <p style={{ fontSize: "12.5px", color: "var(--text-muted)", margin: "3px 0 0" }}>
+              Tentukan rentang tanggal absensi yang akan dimasukkan ke dalam dokumen PDF
+            </p>
           </div>
-        )}
 
-        {pdfMode === "custom" && (
-          <div className="absensi-field-grid">
-            <div className="form-group">
-              <label>Tanggal Dari</label>
-              <input
-                type="date"
-                value={pdfDari}
-                max={pdfSampai || undefined}
-                onChange={(e) => setPdfDari(e.target.value)}
-              />
-            </div>
-            <div className="form-group">
-              <label>Tanggal Sampai</label>
-              <input
-                type="date"
-                value={pdfSampai}
-                min={pdfDari || undefined}
-                onChange={(e) => setPdfSampai(e.target.value)}
-              />
-            </div>
+          <div
+            className="segment-group"
+            style={{
+              display: "flex",
+              gap: 6,
+              background: "var(--bg, #f8fafc)",
+              padding: 4,
+              borderRadius: "var(--radius-sm, 8px)",
+              border: "1px solid var(--border, #e2e8f0)",
+            }}
+          >
+            <button
+              type="button"
+              className={`segment-btn ${pdfMode === "" ? "active" : ""}`}
+              onClick={() => setPdfMode("")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-xs, 6px)",
+                border: "none",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: pdfMode === "" ? "#ffffff" : "transparent",
+                color: pdfMode === "" ? "var(--primary-700, #b91c1c)" : "var(--text-muted)",
+                boxShadow: pdfMode === "" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Semua Periode
+            </button>
+            <button
+              type="button"
+              className={`segment-btn ${pdfMode === "bulan" ? "active" : ""}`}
+              onClick={() => setPdfMode("bulan")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-xs, 6px)",
+                border: "none",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: pdfMode === "bulan" ? "#ffffff" : "transparent",
+                color: pdfMode === "bulan" ? "var(--primary-700, #b91c1c)" : "var(--text-muted)",
+                boxShadow: pdfMode === "bulan" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Bulan
+            </button>
+            <button
+              type="button"
+              className={`segment-btn ${pdfMode === "custom" ? "active" : ""}`}
+              onClick={() => setPdfMode("custom")}
+              style={{
+                flex: 1,
+                padding: "8px 12px",
+                borderRadius: "var(--radius-xs, 6px)",
+                border: "none",
+                fontSize: "13px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: pdfMode === "custom" ? "#ffffff" : "transparent",
+                color: pdfMode === "custom" ? "var(--primary-700, #b91c1c)" : "var(--text-muted)",
+                boxShadow: pdfMode === "custom" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              Custom
+            </button>
           </div>
-        )}
 
-        <div className="report-period" style={{ marginTop: 8 }}>
-          <span className="text-muted-sm">Periode laporan:</span>
-          <strong>{pdfRange.label}</strong>
+          {pdfMode === "bulan" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group" style={{ gap: 4 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Pilih Bulan</label>
+                <select
+                  value={pdfSelectedBulan}
+                  onChange={(e) => setPdfSelectedBulan(e.target.value)}
+                  style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
+                >
+                  {PILIHAN_BULAN.map((b) => (
+                    <option key={b.value} value={b.value}>
+                      {b.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group" style={{ gap: 4 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Pilih Tahun</label>
+                <select
+                  value={pdfSelectedTahun}
+                  onChange={(e) => setPdfSelectedTahun(e.target.value)}
+                  style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
+                >
+                  {PILIHAN_TAHUN.map((yr) => (
+                    <option key={yr} value={String(yr)}>
+                      {yr}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {pdfMode === "custom" && (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+              <div className="form-group" style={{ gap: 4 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Tanggal Dari</label>
+                <input
+                  type="date"
+                  value={pdfDari}
+                  max={pdfSampai || undefined}
+                  onChange={(e) => setPdfDari(e.target.value)}
+                  style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
+                />
+              </div>
+              <div className="form-group" style={{ gap: 4 }}>
+                <label style={{ fontSize: "12px", fontWeight: 600 }}>Tanggal Sampai</label>
+                <input
+                  type="date"
+                  value={pdfSampai}
+                  min={pdfDari || undefined}
+                  onChange={(e) => setPdfSampai(e.target.value)}
+                  style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
+                />
+              </div>
+            </div>
+          )}
+
+          <div
+            style={{
+              padding: "10px 14px",
+              background: "var(--bg, #f8fafc)",
+              borderRadius: "var(--radius-sm, 8px)",
+              border: "1px solid var(--border, #e2e8f0)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              fontSize: "12.5px",
+            }}
+          >
+            <span style={{ color: "var(--text-muted)" }}>Periode yang dicetak:</span>
+            <strong style={{ color: "var(--navy-900)" }}>{pdfRange.label}</strong>
+          </div>
         </div>
       </Modal>
 

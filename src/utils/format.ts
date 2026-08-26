@@ -242,6 +242,88 @@ export function transaksiPerBulan(transaksi: Transaksi[], tahun?: number): { lab
   return hasil;
 }
 
+export type AttendancePeriod = "weekly" | "monthly" | "yearly";
+
+export interface AttendanceChartData {
+  labels: string[];
+  datasets: {
+    label: string;
+    data: number[];
+    color: string;
+    key: string;
+  }[];
+}
+
+/** Kelompokkan absensi per periode untuk grafik kehadiran */
+export function absensiPerPeriode(absensi: Absensi[], mode: AttendancePeriod): AttendanceChartData {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth();
+  const currentDay = now.getDate();
+
+  const statusKeys = ["hadir", "izin", "sakit", "cuti", "alpa"] as const;
+  const statusLabels: Record<typeof statusKeys[number], string> = {
+    hadir: "Hadir",
+    izin: "Izin",
+    sakit: "Sakit",
+    cuti: "Cuti",
+    alpa: "Alpa",
+  };
+  const statusColors: Record<typeof statusKeys[number], string> = {
+    hadir: "#16a34a",
+    izin: "#0284c7",
+    sakit: "#f59e0b",
+    cuti: "#7c3aed",
+    alpa: "#dc2626",
+  };
+
+  let labels: string[] = [];
+  let dateRanges: { start: Date; end: Date }[] = [];
+
+  if (mode === "weekly") {
+    // Last 7 days
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now);
+      d.setDate(currentDay - i);
+      d.setHours(0, 0, 0, 0);
+      const end = new Date(d);
+      end.setHours(23, 59, 59, 999);
+      labels.push(["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"][d.getDay()]);
+      dateRanges.push({ start: d, end });
+    }
+  } else if (mode === "monthly") {
+    // Last 12 months
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(currentYear, currentMonth - i, 1);
+      const end = new Date(currentYear, currentMonth - i + 1, 0, 23, 59, 59, 999);
+      labels.push(NAMA_BULAN_PENDEK[d.getMonth()]);
+      dateRanges.push({ start: d, end });
+    }
+  } else {
+    // Last 5 years
+    for (let i = 4; i >= 0; i--) {
+      const year = currentYear - i;
+      const start = new Date(year, 0, 1);
+      const end = new Date(year, 11, 31, 23, 59, 59, 999);
+      labels.push(String(year));
+      dateRanges.push({ start, end });
+    }
+  }
+
+  const datasets = statusKeys.map((key) => ({
+    label: statusLabels[key],
+    data: dateRanges.map(({ start, end }) => {
+      const startStr = start.toISOString().split("T")[0];
+      const endStr = end.toISOString().split("T")[0];
+      return absensi.filter((a) => a.status === statusLabels[key] && a.tanggal >= startStr && a.tanggal <= endStr).length;
+    }),
+    color: statusColors[key],
+    key,
+  }));
+
+  return { labels, datasets };
+}
+
 /** Normalisasi data anggota dari API (Apps Script dapat mengirim data dengan kunci berbeda) */
 export function normAnggota(raw: Record<string, unknown>): Anggota {
   return {

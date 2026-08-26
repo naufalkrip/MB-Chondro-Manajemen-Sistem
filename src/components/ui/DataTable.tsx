@@ -14,6 +14,7 @@ interface DataTableProps<T> {
   data: T[];
   loading?: boolean;
   emptyMessage?: string;
+  emptyTitle?: string;
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
 }
@@ -22,7 +23,8 @@ export function DataTable<T>({
   columns,
   data,
   loading = false,
-  emptyMessage = "Belum ada data.",
+  emptyMessage = "Belum ada data yang tersimpan.",
+  emptyTitle = "Tidak ada data",
   rowKey,
   onRowClick,
 }: DataTableProps<T>) {
@@ -31,7 +33,7 @@ export function DataTable<T>({
       {loading ? (
         <Loading label="Memuat data..." />
       ) : data.length === 0 ? (
-        <EmptyState message={emptyMessage} />
+        <EmptyState title={emptyTitle} message={emptyMessage} />
       ) : (
         <div className="table-scroll">
           <table className="data-table">

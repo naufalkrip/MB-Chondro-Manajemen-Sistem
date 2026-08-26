@@ -1,23 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useToast } from "../contexts/ToastContext";
-import { cacheGet, cacheSet } from "../services/cache";
+import { cacheGet, cacheSet, cacheSubscribe } from "../services/cache";
+
+interface UseApiOptions {
+  pollingInterval?: number; // interval in ms for background sync (e.g. 20000ms)
+  revalidateOnFocus?: boolean;
+}
 
 interface UseApiResult<T> {
   data: T | null;
   loading: boolean;
   error: string | null;
-  refresh: () => Promise<void>;
+  refresh: (silent?: boolean) => Promise<void>;
+  mutate: (newDataOrUpdater: T | ((prev: T | null) => T), syncServer?: boolean) => void;
 }
 
 /**
- * Hook bantu untuk mengambil data dari API.
- * Bila `cacheKey` diberikan, data dari cache lokal langsung ditampilkan
- * saat halaman dibuka (tanpa layar memuat), lalu di-refresh di latar belakang.
+ * High-performance Realtime SWR Hook.
+ * - Instan 0ms: Langsung render data dari in-memory / local cache tanpa loading spinner.
+ * - Background Sync: Memperbarui data di latar belakang tanpa mengganggu interaksi pengguna.
+ * - Realtime Sync: Otomatis sinkronisasi lintas komponen & tab browser saat data berubah.
+ * - Window Focus Sync: Otomatis cek pembaruan saat pengguna kembali membuka tab.
  */
 export function useApi<T>(
   fetcher: () => Promise<T>,
   errorMessage = "Gagal mengambil data.",
-  cacheKey?: string
+  cacheKey?: string,
+  options: UseApiOptions = { pollingInterval: 25000, revalidateOnFocus: true }
 ): UseApiResult<T> {
   const cached = useMemo(() => (cacheKey ? cacheGet<T>(cacheKey) : null), [cacheKey]);
   const [data, setData] = useState<T | null>(cached);
@@ -28,31 +37,103 @@ export function useApi<T>(
   const dataRef = useRef<T | null>(cached);
   dataRef.current = data;
 
-  const refresh = useCallback(async () => {
-    setLoading(dataRef.current === null);
-    setError(null);
-    try {
-      const result = await fetcher();
-      dataRef.current = result;
-      setData(result);
-      if (cacheKey) cacheSet(cacheKey, result);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : errorMessage;
-      if (dataRef.current === null) {
-        setError(msg);
-        toastError(msg);
-      }
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const fetcherRef = useRef(fetcher);
+  fetcherRef.current = fetcher;
 
+  // Realtime subscription to local cache updates
   useEffect(() => {
-    void refresh();
+    if (!cacheKey) return;
+    const unsub = cacheSubscribe((key, val) => {
+      if (key === cacheKey && val !== undefined) {
+        dataRef.current = val as T;
+        setData(val as T);
+        setLoading(false);
+      }
+    });
+    return unsub;
+  }, [cacheKey]);
+
+  const refresh = useCallback(
+    async (silent = false) => {
+      if (!silent && dataRef.current === null) {
+        setLoading(true);
+      }
+      setError(null);
+      try {
+        const result = await fetcherRef.current();
+        dataRef.current = result;
+        setData(result);
+        if (cacheKey) {
+          cacheSet(cacheKey, result);
+        }
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : errorMessage;
+        if (dataRef.current === null) {
+          setError(msg);
+          toastError(msg);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [cacheKey, errorMessage]
+  );
+
+  // Initial fetch and dependency trigger
+  useEffect(() => {
+    void refresh(true);
   }, [refresh]);
 
-  return { data, loading, error, refresh };
+  // Realtime Polling & Window Focus Sync
+  useEffect(() => {
+    // 1. Focus revalidation
+    const onFocus = () => {
+      if (options.revalidateOnFocus !== false) {
+        void refresh(true);
+      }
+    };
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+
+    // 2. Periodic background polling
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+    if (options.pollingInterval && options.pollingInterval > 0) {
+      intervalId = setInterval(() => {
+        if (document.visibilityState === "visible") {
+          void refresh(true);
+        }
+      }, options.pollingInterval);
+    }
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [options.pollingInterval, options.revalidateOnFocus, refresh]);
+
+  // Optimistic local mutation (Instant 0ms UI update)
+  const mutate = useCallback(
+    (newDataOrUpdater: T | ((prev: T | null) => T), syncServer = false) => {
+      const nextVal =
+        typeof newDataOrUpdater === "function"
+          ? (newDataOrUpdater as (prev: T | null) => T)(dataRef.current)
+          : newDataOrUpdater;
+
+      dataRef.current = nextVal;
+      setData(nextVal);
+      if (cacheKey) {
+        cacheSet(cacheKey, nextVal);
+      }
+      if (syncServer) {
+        void refresh(true);
+      }
+    },
+    [cacheKey, refresh]
+  );
+
+  return { data, loading, error, refresh, mutate };
 }
 
 /** Hook untuk state pagination sederhana */

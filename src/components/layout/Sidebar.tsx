@@ -1,7 +1,9 @@
 import { NavLink } from "react-router-dom";
 import {
   ClipboardCheck,
+  FileText,
   LayoutDashboard,
+  UserPlus,
   Users,
   Wallet,
   WalletCards,
@@ -15,6 +17,8 @@ const NAV_ITEMS = [
   { to: "/absensi", label: "Absensi", icon: ClipboardCheck },
   { to: "/keuangan", label: "Keuangan", icon: Wallet },
   { to: "/keuangan-media", label: "Keuangan Media", icon: WalletCards },
+  { to: "/transaksi", label: "Transaksi", icon: FileText },
+  { to: "/rekrutmen", label: "Rekruitmen", icon: UserPlus },
 ];
 
 interface SidebarProps {
@@ -55,6 +59,7 @@ export function Sidebar({ open, onClose }: SidebarProps) {
         </nav>
         <div className="sidebar-footer">
           <span>© {new Date().getFullYear()} MB Chondro</span>
+          <span>v1.0.0</span>
         </div>
       </aside>
     </>

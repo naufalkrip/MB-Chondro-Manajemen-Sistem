@@ -61,6 +61,54 @@ var SHEET_CONFIG = [
     headers: ["ID Transaksi", "Tanggal", "Jenis", "Kategori", "Keterangan", "Nominal", "Penanggung Jawab"],
     keys: ["id", "tanggal", "jenis", "kategori", "keterangan", "nominal", "penanggungJawab"],
     idCol: 0
+  },
+  {
+    key: "TRANSAKSI_GROUP",
+    name: "TRANSAKSI_GROUP",
+    idPrefix: "TG",
+    headers: ["id", "judul", "tanggal", "keterangan", "createdAt", "updatedAt"],
+    keys: ["id", "judul", "tanggal", "keterangan", "createdAt", "updatedAt"],
+    idCol: 0
+  },
+  {
+    key: "TRANSAKSI_DETAIL",
+    name: "TRANSAKSI_DETAIL",
+    idPrefix: "TD",
+    headers: ["id", "transaksiGroupId", "tanggal", "jenis", "kategori", "nominal", "keterangan", "createdAt", "updatedAt"],
+    keys: ["id", "transaksiGroupId", "tanggal", "jenis", "kategori", "nominal", "keterangan", "createdAt", "updatedAt"],
+    idCol: 0
+  },
+  {
+    key: "REKRUITMEN_FORM",
+    name: "REKRUITMEN_FORM",
+    idPrefix: "RF",
+    headers: ["id", "title", "description", "status", "createdAt", "updatedAt"],
+    keys: ["id", "title", "description", "status", "createdAt", "updatedAt"],
+    idCol: 0
+  },
+  {
+    key: "REKRUITMEN_FIELDS",
+    name: "REKRUITMEN_FIELDS",
+    idPrefix: "RFLD",
+    headers: ["id", "formId", "label", "description", "fieldType", "required", "options", "sortOrder", "placeholder", "exampleImageUrl", "exampleImageTitle", "maxFileSize", "allowedFileTypes", "createdAt", "updatedAt"],
+    keys: ["id", "formId", "label", "description", "fieldType", "required", "options", "sortOrder", "placeholder", "exampleImageUrl", "exampleImageTitle", "maxFileSize", "allowedFileTypes", "createdAt", "updatedAt"],
+    idCol: 0
+  },
+  {
+    key: "REKRUITMEN_SUBMISSIONS",
+    name: "REKRUITMEN_SUBMISSIONS",
+    idPrefix: "RSUB",
+    headers: ["id", "formId", "status", "adminNote", "submittedAt", "reviewedAt", "reviewedBy"],
+    keys: ["id", "formId", "status", "adminNote", "submittedAt", "reviewedAt", "reviewedBy"],
+    idCol: 0
+  },
+  {
+    key: "REKRUITMEN_ANSWERS",
+    name: "REKRUITMEN_ANSWERS",
+    idPrefix: "RANS",
+    headers: ["id", "submissionId", "fieldId", "value", "fileUrl", "fileName", "fileType", "fileSize", "createdAt"],
+    keys: ["id", "submissionId", "fieldId", "value", "fileUrl", "fileName", "fileType", "fileSize", "createdAt"],
+    idCol: 0
   }
 ];
 
@@ -89,7 +137,10 @@ function doPost(e) {
 
 function handleRequest(action, data) {
   try {
-    ensureSetup();
+    if (action === "setup") {
+      ensureSetup();
+      return jsonResponse({ success: true, message: "Setup selesai." });
+    }
 
     if (API_TOKEN && data.token !== API_TOKEN) {
       return jsonResponse({ success: false, message: "Token tidak valid." });
@@ -158,6 +209,64 @@ function executeAction(action, data) {
     case "deleteKeuanganMedia":
       return deleteKeuanganMedia(data);
 
+    // Transaksi Group
+    case "getTransaksiGroup":
+      return getTransaksiGroup();
+    case "addTransaksiGroup":
+      return addTransaksiGroup(data);
+    case "updateTransaksiGroup":
+      return updateTransaksiGroup(data);
+    case "deleteTransaksiGroup":
+      return deleteTransaksiGroup(data);
+
+    // Transaksi Detail
+    case "getTransaksiDetail":
+      return getTransaksiDetail(data.transaksiGroupId);
+    case "addTransaksiDetail":
+      return addTransaksiDetail(data);
+    case "updateTransaksiDetail":
+      return updateTransaksiDetail(data);
+    case "deleteTransaksiDetail":
+      return deleteTransaksiDetail(data);
+
+    // Rekrutmen Form
+    case "getRekrutmenForm":
+      return getRekrutmenForm();
+    case "addRekrutmenForm":
+      return addRekrutmenForm(data);
+    case "updateRekrutmenForm":
+      return updateRekrutmenForm(data);
+    case "deleteRekrutmenForm":
+      return deleteRekrutmenForm(data);
+
+    // Rekrutmen Fields
+    case "getRekrutmenFields":
+      return getRekrutmenFields(data.formId);
+    case "addRekrutmenField":
+      return addRekrutmenField(data);
+    case "updateRekrutmenField":
+      return updateRekrutmenField(data);
+    case "deleteRekrutmenField":
+      return deleteRekrutmenField(data);
+    case "reorderRekrutmenFields":
+      return reorderRekrutmenFields(data.formId, data.fieldOrders);
+
+    // Rekrutmen Submissions
+    case "getRekrutmenSubmissions":
+      return getRekrutmenSubmissions(data.formId);
+    case "addRekrutmenSubmission":
+      return addRekrutmenSubmission(data);
+    case "updateRekrutmenSubmission":
+      return updateRekrutmenSubmission(data.id, data);
+    case "deleteRekrutmenSubmission":
+      return deleteRekrutmenSubmission(data);
+    case "getRekrutmenSubmissionDetail":
+      return getRekrutmenSubmissionDetail(data.submissionId);
+    case "getRekrutmenAnswers":
+      return getRekrutmenAnswers(data.submissionId);
+    case "getRekrutmenStats":
+      return getRekrutmenStats(data.formId);
+
     default:
       throw new Error("Action tidak dikenal: " + action);
   }
@@ -171,15 +280,19 @@ function getSpreadsheet() {
   return SpreadsheetApp.openById(SPREADSHEET_ID);
 }
 
-function ensureSetup() {
+function getOrCreateSheet(cfg) {
   var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(cfg.name);
+  if (!sheet) {
+    sheet = ss.insertSheet(cfg.name);
+  }
+  ensureHeaders(sheet, cfg);
+  return sheet;
+}
+
+function ensureSetup() {
   for (var i = 0; i < SHEET_CONFIG.length; i++) {
-    var cfg = SHEET_CONFIG[i];
-    var sheet = ss.getSheetByName(cfg.name);
-    if (!sheet) {
-      sheet = ss.insertSheet(cfg.name);
-    }
-    ensureHeaders(sheet, cfg);
+    getOrCreateSheet(SHEET_CONFIG[i]);
   }
 }
 
@@ -233,8 +346,7 @@ function formatDate(d) {
 }
 
 function readRows(cfg) {
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return [];
   var values = sheet.getRange(1, 1, lastRow, cfg.keys.length).getValues();
@@ -253,8 +365,7 @@ function readRows(cfg) {
 }
 
 function generateId(cfg) {
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
   var max = 0;
   if (lastRow >= 1) {
@@ -272,8 +383,7 @@ function generateId(cfg) {
 }
 
 function findRowIndex(cfg, id) {
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
   if (lastRow < 1) return -1;
   var ids = sheet.getRange(1, cfg.idCol + 1, lastRow, 1).getValues();
@@ -777,3 +887,754 @@ function getKeuanganMedia() { return getKeuangan("KEUANGAN_MEDIA"); }
 function addKeuanganMedia(data) { return addKeuangan("KEUANGAN_MEDIA", data); }
 function updateKeuanganMedia(data) { return updateKeuangan("KEUANGAN_MEDIA", data); }
 function deleteKeuanganMedia(data) { return deleteKeuangan("KEUANGAN_MEDIA", data); }
+
+// ============================================================
+// TRANSAKSI GROUP & DETAIL
+// ============================================================
+
+function getTransaksiGroup() {
+  var groups = readRows(getSheetConfig("TRANSAKSI_GROUP"));
+  var details = readRows(getSheetConfig("TRANSAKSI_DETAIL"));
+
+  var statsByGroupId = {};
+  for (var i = 0; i < details.length; i++) {
+    var d = details[i];
+    var gid = String(d.transaksiGroupId);
+    if (!statsByGroupId[gid]) {
+      statsByGroupId[gid] = { count: 0, pemasukan: 0, pengeluaran: 0 };
+    }
+    var nom = Number(d.nominal) || 0;
+    statsByGroupId[gid].count++;
+    if (d.jenis === "Pemasukan") {
+      statsByGroupId[gid].pemasukan += nom;
+    } else {
+      statsByGroupId[gid].pengeluaran += nom;
+    }
+  }
+
+  for (var j = 0; j < groups.length; j++) {
+    var g = groups[j];
+    var st = statsByGroupId[String(g.id)] || { count: 0, pemasukan: 0, pengeluaran: 0 };
+    g.totalTransaksi = st.count;
+    g.totalPemasukan = st.pemasukan;
+    g.totalPengeluaran = st.pengeluaran;
+    g.saldo = st.pemasukan - st.pengeluaran;
+  }
+  return groups;
+}
+
+function addTransaksiGroup(data) {
+  if (!data.judul || !String(data.judul).trim()) throw new Error("Judul transaksi wajib diisi.");
+  var cfg = getSheetConfig("TRANSAKSI_GROUP");
+  var id = generateId(cfg);
+  var now = new Date().toISOString();
+  var sheet = getOrCreateSheet(cfg);
+  var row = [
+    id,
+    String(data.judul || "").trim(),
+    String(data.tanggal || formatDate(new Date())),
+    String(data.keterangan || "").trim(),
+    now,
+    now
+  ];
+  sheet.appendRow(row);
+  return {
+    id: id,
+    judul: row[1],
+    tanggal: row[2],
+    keterangan: row[3],
+    createdAt: row[4],
+    updatedAt: row[5],
+    totalTransaksi: 0,
+    totalPemasukan: 0,
+    totalPengeluaran: 0,
+    saldo: 0,
+    message: "Data berhasil disimpan."
+  };
+}
+
+function updateTransaksiGroup(data) {
+  if (!data.id) throw new Error("ID transaksi group tidak ditemukan.");
+  if (!data.judul || !String(data.judul).trim()) throw new Error("Judul transaksi wajib diisi.");
+  var cfg = getSheetConfig("TRANSAKSI_GROUP");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Transaksi group tidak ditemukan.");
+  var sheet = getOrCreateSheet(cfg);
+  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
+  var createdAt = existingRow[4] || new Date().toISOString();
+  var now = new Date().toISOString();
+  var row = [
+    data.id,
+    String(data.judul || "").trim(),
+    String(data.tanggal || existingRow[2] || ""),
+    String(data.keterangan || "").trim(),
+    createdAt,
+    now
+  ];
+  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
+  return {
+    id: data.id,
+    judul: row[1],
+    tanggal: row[2],
+    keterangan: row[3],
+    createdAt: row[4],
+    updatedAt: row[5],
+    message: "Data berhasil disimpan."
+  };
+}
+
+function deleteTransaksiGroup(data) {
+  if (!data.id) throw new Error("ID transaksi group tidak ditemukan.");
+  var cfg = getSheetConfig("TRANSAKSI_GROUP");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Transaksi group tidak ditemukan.");
+  var sheet = getOrCreateSheet(cfg);
+  sheet.deleteRow(rowIndex);
+
+  // Hapus semua detail yang terkait
+  var detailCfg = getSheetConfig("TRANSAKSI_DETAIL");
+  var detailSheet = getOrCreateSheet(detailCfg);
+  var lastRow = detailSheet.getLastRow();
+  if (lastRow > 1) {
+    var detailRows = detailSheet.getRange(2, 1, lastRow - 1, detailCfg.keys.length).getValues();
+    for (var r = detailRows.length - 1; r >= 0; r--) {
+      if (String(detailRows[r][1]) === String(data.id)) {
+        detailSheet.deleteRow(r + 2);
+      }
+    }
+  }
+  return { message: "Data berhasil dihapus." };
+}
+
+// ---------------- TRANSAKSI DETAIL ----------------
+
+function getTransaksiDetail(transaksiGroupId) {
+  var rows = readRows(getSheetConfig("TRANSAKSI_DETAIL"));
+  if (!transaksiGroupId) return rows;
+  return rows.filter(function (r) {
+    return String(r.transaksiGroupId) === String(transaksiGroupId);
+  });
+}
+
+function validateTransaksiDetail(data) {
+  if (!data.transaksiGroupId) throw new Error("ID group transaksi wajib diisi.");
+  if (!data.tanggal) throw new Error("Tanggal wajib diisi.");
+  if (!data.jenis) throw new Error("Jenis transaksi wajib dipilih.");
+  var jenis = String(data.jenis);
+  if (["Pemasukan", "Pengeluaran"].indexOf(jenis) === -1) {
+    throw new Error("Jenis transaksi tidak valid.");
+  }
+  var nominal = Number(data.nominal);
+  if (isNaN(nominal)) throw new Error("Nominal harus berupa angka.");
+  if (nominal < 0) throw new Error("Nominal tidak boleh negatif.");
+}
+
+function addTransaksiDetail(data) {
+  validateTransaksiDetail(data);
+  var cfg = getSheetConfig("TRANSAKSI_DETAIL");
+  var id = generateId(cfg);
+  var now = new Date().toISOString();
+  var sheet = getOrCreateSheet(cfg);
+  var row = [
+    id,
+    String(data.transaksiGroupId),
+    String(data.tanggal || ""),
+    String(data.jenis || ""),
+    String(data.kategori || "").trim(),
+    Number(data.nominal) || 0,
+    String(data.keterangan || "").trim(),
+    now,
+    now
+  ];
+  sheet.appendRow(row);
+  return {
+    id: id,
+    transaksiGroupId: row[1],
+    tanggal: row[2],
+    jenis: row[3],
+    kategori: row[4],
+    nominal: row[5],
+    keterangan: row[6],
+    createdAt: row[7],
+    updatedAt: row[8],
+    message: "Data berhasil disimpan."
+  };
+}
+
+function updateTransaksiDetail(data) {
+  if (!data.id) throw new Error("ID detail transaksi tidak ditemukan.");
+  validateTransaksiDetail(data);
+  var cfg = getSheetConfig("TRANSAKSI_DETAIL");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Detail transaksi tidak ditemukan.");
+  var sheet = getOrCreateSheet(cfg);
+  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
+  var createdAt = existingRow[7] || new Date().toISOString();
+  var now = new Date().toISOString();
+  var row = [
+    data.id,
+    String(data.transaksiGroupId || existingRow[1]),
+    String(data.tanggal || ""),
+    String(data.jenis || ""),
+    String(data.kategori || "").trim(),
+    Number(data.nominal) || 0,
+    String(data.keterangan || "").trim(),
+    createdAt,
+    now
+  ];
+  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
+  return {
+    id: data.id,
+    transaksiGroupId: row[1],
+    tanggal: row[2],
+    jenis: row[3],
+    kategori: row[4],
+    nominal: row[5],
+    keterangan: row[6],
+    createdAt: row[7],
+    updatedAt: row[8],
+    message: "Data berhasil disimpan."
+  };
+}
+
+function deleteTransaksiDetail(data) {
+  if (!data.id) throw new Error("ID detail transaksi tidak ditemukan.");
+  var cfg = getSheetConfig("TRANSAKSI_DETAIL");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Detail transaksi tidak ditemukan.");
+  var sheet = getOrCreateSheet(cfg);
+  sheet.deleteRow(rowIndex);
+  return { message: "Data berhasil dihapus." };
+}
+
+// ============================================================
+// REKRUITMEN (FORM, FIELDS, SUBMISSIONS, ANSWERS)
+// ============================================================
+
+function getRekrutmenForm() {
+  var rows = readRows(getSheetConfig("REKRUITMEN_FORM"));
+  if (rows.length === 0) {
+    return null;
+  }
+  return rows[rows.length - 1];
+}
+
+function addRekrutmenForm(data) {
+  if (!data.title || !String(data.title).trim()) throw new Error("Judul formulir wajib diisi.");
+  var cfg = getSheetConfig("REKRUITMEN_FORM");
+  var id = generateId(cfg);
+  var now = new Date().toISOString();
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(cfg.name);
+  var row = [
+    id,
+    String(data.title || "").trim(),
+    String(data.description || "").trim(),
+    String(data.status || "dibuka"),
+    now,
+    now
+  ];
+  sheet.appendRow(row);
+  return {
+    id: id,
+    title: row[1],
+    description: row[2],
+    status: row[3],
+    createdAt: row[4],
+    updatedAt: row[5],
+    message: "Formulir berhasil dibuat."
+  };
+}
+
+function updateRekrutmenForm(data) {
+  if (!data.id) throw new Error("ID formulir tidak ditemukan.");
+  if (!data.title || !String(data.title).trim()) throw new Error("Judul formulir wajib diisi.");
+  var cfg = getSheetConfig("REKRUITMEN_FORM");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Formulir tidak ditemukan.");
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(cfg.name);
+  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
+  var createdAt = existingRow[4] || new Date().toISOString();
+  var now = new Date().toISOString();
+  var row = [
+    data.id,
+    String(data.title || "").trim(),
+    String(data.description || "").trim(),
+    String(data.status || existingRow[3] || "dibuka"),
+    createdAt,
+    now
+  ];
+  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
+  return {
+    id: data.id,
+    title: row[1],
+    description: row[2],
+    status: row[3],
+    createdAt: row[4],
+    updatedAt: row[5],
+    message: "Formulir berhasil diperbarui."
+  };
+}
+
+function deleteRekrutmenForm(data) {
+  if (!data.id) throw new Error("ID formulir tidak ditemukan.");
+  var cfg = getSheetConfig("REKRUITMEN_FORM");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Formulir tidak ditemukan.");
+  var ss = getSpreadsheet();
+  ss.getSheetByName(cfg.name).deleteRow(rowIndex);
+
+  // Hapus semua fields terkait
+  var fldCfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var fldSheet = ss.getSheetByName(fldCfg.name);
+  var fldLast = fldSheet.getLastRow();
+  if (fldLast > 1) {
+    var fldRows = fldSheet.getRange(2, 1, fldLast - 1, fldCfg.keys.length).getValues();
+    for (var r = fldRows.length - 1; r >= 0; r--) {
+      if (String(fldRows[r][1]) === String(data.id)) {
+        fldSheet.deleteRow(r + 2);
+      }
+    }
+  }
+
+  // Hapus submissions dan answers terkait
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var subSheet = ss.getSheetByName(subCfg.name);
+  var subLast = subSheet.getLastRow();
+  var deletedSubIds = {};
+  if (subLast > 1) {
+    var subRows = subSheet.getRange(2, 1, subLast - 1, subCfg.keys.length).getValues();
+    for (var s = subRows.length - 1; s >= 0; s--) {
+      if (String(subRows[s][1]) === String(data.id)) {
+        deletedSubIds[String(subRows[s][0])] = true;
+        subSheet.deleteRow(s + 2);
+      }
+    }
+  }
+
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var ansSheet = ss.getSheetByName(ansCfg.name);
+  var ansLast = ansSheet.getLastRow();
+  if (ansLast > 1) {
+    var ansRows = ansSheet.getRange(2, 1, ansLast - 1, ansCfg.keys.length).getValues();
+    for (var a = ansRows.length - 1; a >= 0; a--) {
+      if (deletedSubIds[String(ansRows[a][1])]) {
+        ansSheet.deleteRow(a + 2);
+      }
+    }
+  }
+
+  return { message: "Formulir berhasil dihapus." };
+}
+
+// ---------------- REKRUITMEN FIELDS ----------------
+
+function getRekrutmenFields(formId) {
+  var rows = readRows(getSheetConfig("REKRUITMEN_FIELDS"));
+  var filtered = rows;
+  if (formId) {
+    filtered = rows.filter(function (f) {
+      return String(f.formId) === String(formId);
+    });
+  }
+  filtered.sort(function (a, b) {
+    return (Number(a.sortOrder) || 0) - (Number(b.sortOrder) || 0);
+  });
+  return filtered;
+}
+
+function addRekrutmenField(data) {
+  if (!data.formId) throw new Error("ID formulir wajib diisi.");
+  if (!data.label || !String(data.label).trim()) throw new Error("Label pertanyaan wajib diisi.");
+  var cfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var id = generateId(cfg);
+  var now = new Date().toISOString();
+  var sheet = getOrCreateSheet(cfg);
+
+  var sortOrder = data.sortOrder;
+  if (sortOrder === undefined || sortOrder === null) {
+    var currentFields = getRekrutmenFields(data.formId);
+    sortOrder = currentFields.length;
+  }
+
+  var isUpload = data.fieldType === "image" || data.fieldType === "file";
+  var exampleImageUrl = isUpload ? String(data.exampleImageUrl || "").trim() : "";
+  var exampleImageTitle = isUpload ? String(data.exampleImageTitle || "").trim() : "";
+  var maxFileSize = isUpload ? (Number(data.maxFileSize) || (data.fieldType === "image" ? 2 : 5)) : 0;
+
+  var row = [
+    id,
+    String(data.formId),
+    String(data.label || "").trim(),
+    String(data.description || "").trim(),
+    String(data.fieldType || "text"),
+    Boolean(data.required),
+    typeof data.options === "string" ? data.options : JSON.stringify(data.options || []),
+    Number(sortOrder) || 0,
+    String(data.placeholder || "").trim(),
+    exampleImageUrl,
+    exampleImageTitle,
+    maxFileSize,
+    typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes || []),
+    now,
+    now
+  ];
+  sheet.appendRow(row);
+  return {
+    id: id,
+    formId: row[1],
+    label: row[2],
+    description: row[3],
+    fieldType: row[4],
+    required: row[5],
+    options: row[6],
+    sortOrder: row[7],
+    placeholder: row[8],
+    exampleImageUrl: row[9],
+    exampleImageTitle: row[10],
+    maxFileSize: row[11],
+    allowedFileTypes: row[12],
+    createdAt: row[13],
+    updatedAt: row[14],
+    message: "Pertanyaan berhasil ditambahkan."
+  };
+}
+
+function updateRekrutmenField(data) {
+  if (!data.id) throw new Error("ID pertanyaan tidak ditemukan.");
+  var cfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Pertanyaan tidak ditemukan.");
+  var sheet = getOrCreateSheet(cfg);
+  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
+  var createdAt = existingRow[13] || existingRow[8] || new Date().toISOString();
+  var now = new Date().toISOString();
+
+  var fType = data.fieldType || existingRow[4] || "text";
+  var isUpload = fType === "image" || fType === "file";
+  var exampleImageUrl = isUpload ? (data.exampleImageUrl !== undefined ? String(data.exampleImageUrl).trim() : String(existingRow[9] || "")) : "";
+  var exampleImageTitle = isUpload ? (data.exampleImageTitle !== undefined ? String(data.exampleImageTitle).trim() : String(existingRow[10] || "")) : "";
+  var maxFileSize = isUpload ? (data.maxFileSize !== undefined ? Number(data.maxFileSize) : (Number(existingRow[11]) || 2)) : 0;
+
+  var row = [
+    data.id,
+    String(data.formId || existingRow[1]),
+    String(data.label !== undefined ? data.label : existingRow[2]).trim(),
+    String(data.description !== undefined ? data.description : existingRow[3]).trim(),
+    String(fType),
+    data.required !== undefined ? Boolean(data.required) : Boolean(existingRow[5]),
+    data.options !== undefined ? (typeof data.options === "string" ? data.options : JSON.stringify(data.options)) : existingRow[6],
+    data.sortOrder !== undefined ? Number(data.sortOrder) : Number(existingRow[7]),
+    data.placeholder !== undefined ? String(data.placeholder).trim() : String(existingRow[8] || ""),
+    exampleImageUrl,
+    exampleImageTitle,
+    maxFileSize,
+    data.allowedFileTypes !== undefined ? (typeof data.allowedFileTypes === "string" ? data.allowedFileTypes : JSON.stringify(data.allowedFileTypes)) : existingRow[12],
+    createdAt,
+    now
+  ];
+  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
+  return {
+    id: data.id,
+    formId: row[1],
+    label: row[2],
+    description: row[3],
+    fieldType: row[4],
+    required: row[5],
+    options: row[6],
+    sortOrder: row[7],
+    placeholder: row[8],
+    exampleImageUrl: row[9],
+    exampleImageTitle: row[10],
+    maxFileSize: row[11],
+    allowedFileTypes: row[12],
+    createdAt: row[13],
+    updatedAt: row[14],
+    message: "Pertanyaan berhasil diperbarui."
+  };
+}
+
+function deleteRekrutmenField(data) {
+  if (!data.id) throw new Error("ID pertanyaan tidak ditemukan.");
+  var cfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var rowIndex = findRowIndex(cfg, data.id);
+  if (rowIndex === -1) throw new Error("Pertanyaan tidak ditemukan.");
+  var ss = getSpreadsheet();
+  ss.getSheetByName(cfg.name).deleteRow(rowIndex);
+  return { message: "Pertanyaan berhasil dihapus." };
+}
+
+function reorderRekrutmenFields(formId, fieldOrders) {
+  if (!Array.isArray(fieldOrders) || fieldOrders.length === 0) {
+    return { message: "Tidak ada data urutan." };
+  }
+  var cfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(cfg.name);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { message: "Sheet kosong." };
+
+  var rows = sheet.getRange(2, 1, lastRow - 1, cfg.keys.length).getValues();
+  var orderMap = {};
+  for (var i = 0; i < fieldOrders.length; i++) {
+    orderMap[String(fieldOrders[i].id)] = Number(fieldOrders[i].sortOrder);
+  }
+
+  for (var r = 0; r < rows.length; r++) {
+    var id = String(rows[r][0]);
+    if (orderMap[id] !== undefined) {
+      rows[r][7] = orderMap[id];
+      rows[r][9] = new Date().toISOString();
+    }
+  }
+
+  sheet.getRange(2, 1, lastRow - 1, cfg.keys.length).setValues(rows);
+  return { message: "Urutan berhasil diperbarui." };
+}
+
+// ---------------- REKRUITMEN SUBMISSIONS & ANSWERS ----------------
+
+function getRekrutmenSubmissions(formId) {
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var allSubs = readRows(subCfg);
+  var subs = allSubs;
+  if (formId) {
+    subs = allSubs.filter(function (s) {
+      return String(s.formId) === String(formId);
+    });
+  }
+
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var allAnswers = readRows(ansCfg);
+  var fldCfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var allFields = readRows(fldCfg);
+  var fieldMap = {};
+  for (var f = 0; f < allFields.length; f++) {
+    fieldMap[String(allFields[f].id)] = allFields[f];
+  }
+
+  var answersBySubId = {};
+  for (var a = 0; a < allAnswers.length; a++) {
+    var ans = allAnswers[a];
+    var sid = String(ans.submissionId);
+    if (!answersBySubId[sid]) answersBySubId[sid] = [];
+    var fieldObj = fieldMap[String(ans.fieldId)] || { id: ans.fieldId, label: "", fieldType: "text" };
+    ans.field = fieldObj;
+    answersBySubId[sid].push(ans);
+  }
+
+  for (var s = 0; s < subs.length; s++) {
+    subs[s].answers = answersBySubId[String(subs[s].id)] || [];
+  }
+  return subs;
+}
+
+function getRekrutmenSubmissionDetail(submissionId) {
+  if (!submissionId) throw new Error("ID pendaftaran tidak ditemukan.");
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var subs = readRows(subCfg);
+  var sub = null;
+  for (var i = 0; i < subs.length; i++) {
+    if (String(subs[i].id) === String(submissionId)) {
+      sub = subs[i];
+      break;
+    }
+  }
+  if (!sub) throw new Error("Data pendaftaran tidak ditemukan.");
+
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var answers = readRows(ansCfg).filter(function (a) {
+    return String(a.submissionId) === String(submissionId);
+  });
+
+  var fldCfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var fields = readRows(fldCfg);
+  var fieldMap = {};
+  for (var f = 0; f < fields.length; f++) {
+    fieldMap[String(fields[f].id)] = fields[f];
+  }
+
+  for (var j = 0; j < answers.length; j++) {
+    answers[j].field = fieldMap[String(answers[j].fieldId)] || { id: answers[j].fieldId, label: "", fieldType: "text" };
+  }
+  sub.answers = answers;
+  return sub;
+}
+
+function getRekrutmenAnswers(submissionId) {
+  if (!submissionId) return [];
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var allAnswers = readRows(ansCfg);
+  var fldCfg = getSheetConfig("REKRUITMEN_FIELDS");
+  var allFields = readRows(fldCfg);
+  var fieldMap = {};
+  for (var f = 0; f < allFields.length; f++) {
+    fieldMap[String(allFields[f].id)] = allFields[f];
+  }
+
+  var filtered = allAnswers.filter(function (a) {
+    return String(a.submissionId) === String(submissionId);
+  });
+  for (var i = 0; i < filtered.length; i++) {
+    filtered[i].field = fieldMap[String(filtered[i].fieldId)] || { id: filtered[i].fieldId, label: "", fieldType: "text" };
+  }
+  return filtered;
+}
+
+function addRekrutmenSubmission(data) {
+  if (!data.formId) throw new Error("ID formulir wajib diisi.");
+
+  // Validasi status formulir aktif / tidak aktif
+  var formCfg = getSheetConfig("REKRUITMEN_FORM");
+  var forms = readRows(formCfg);
+  var targetForm = null;
+  for (var f = 0; f < forms.length; f++) {
+    if (String(forms[f].id) === String(data.formId)) {
+      targetForm = forms[f];
+      break;
+    }
+  }
+  if (!targetForm && forms.length > 0) {
+    targetForm = forms[forms.length - 1];
+  }
+  if (targetForm && String(targetForm.status).toLowerCase() !== "dibuka") {
+    throw new Error("Formulir pendaftaran saat ini sedang tidak aktif atau ditutup. Pendaftaran baru tidak dapat diproses.");
+  }
+
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var subId = generateId(subCfg);
+  var now = new Date().toISOString();
+  var ss = getSpreadsheet();
+  var subSheet = ss.getSheetByName(subCfg.name);
+
+  var subRow = [
+    subId,
+    String(data.formId),
+    String(data.status || "menunggu"),
+    String(data.adminNote || "").trim(),
+    now,
+    "",
+    ""
+  ];
+  subSheet.appendRow(subRow);
+
+  // Simpan answers jika disertakan
+  var answers = data.answers;
+  if (Array.isArray(answers) && answers.length > 0) {
+    var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+    var ansSheet = ss.getSheetByName(ansCfg.name);
+    for (var i = 0; i < answers.length; i++) {
+      var item = answers[i];
+      var ansId = generateId(ansCfg);
+      var ansRow = [
+        ansId,
+        subId,
+        String(item.fieldId || ""),
+        String(item.value || ""),
+        String(item.fileUrl || ""),
+        String(item.fileName || ""),
+        String(item.fileType || ""),
+        Number(item.fileSize) || 0,
+        now
+      ];
+      ansSheet.appendRow(ansRow);
+    }
+  }
+
+  return {
+    id: subId,
+    formId: subRow[1],
+    status: subRow[2],
+    adminNote: subRow[3],
+    submittedAt: subRow[4],
+    reviewedAt: null,
+    reviewedBy: null,
+    message: "Pendaftaran berhasil dikirim."
+  };
+}
+
+function updateRekrutmenSubmission(id, data) {
+  if (!id) throw new Error("ID pendaftaran tidak ditemukan.");
+  var cfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var rowIndex = findRowIndex(cfg, id);
+  if (rowIndex === -1) throw new Error("Data pendaftaran tidak ditemukan.");
+  var ss = getSpreadsheet();
+  var sheet = ss.getSheetByName(cfg.name);
+  var existingRow = sheet.getRange(rowIndex, 1, 1, cfg.keys.length).getValues()[0];
+
+  var newStatus = data.status !== undefined ? String(data.status) : existingRow[2];
+  var adminNote = data.adminNote !== undefined ? String(data.adminNote).trim() : existingRow[3];
+  var reviewedAt = (newStatus !== "menunggu" && !existingRow[5]) ? new Date().toISOString() : existingRow[5];
+  var reviewedBy = data.reviewedBy !== undefined ? String(data.reviewedBy) : existingRow[6];
+
+  var row = [
+    id,
+    existingRow[1],
+    newStatus,
+    adminNote,
+    existingRow[4],
+    reviewedAt,
+    reviewedBy
+  ];
+  sheet.getRange(rowIndex, 1, 1, cfg.keys.length).setValues([row]);
+  return {
+    id: id,
+    formId: row[1],
+    status: row[2],
+    adminNote: row[3],
+    submittedAt: row[4],
+    reviewedAt: row[5] || null,
+    reviewedBy: row[6] || null,
+    message: "Status pendaftaran berhasil diperbarui."
+  };
+}
+
+function deleteRekrutmenSubmission(data) {
+  if (!data.id) throw new Error("ID pendaftaran tidak ditemukan.");
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var rowIndex = findRowIndex(subCfg, data.id);
+  if (rowIndex === -1) throw new Error("Data pendaftaran tidak ditemukan.");
+  var ss = getSpreadsheet();
+  ss.getSheetByName(subCfg.name).deleteRow(rowIndex);
+
+  // Hapus semua answers terkait
+  var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
+  var ansSheet = ss.getSheetByName(ansCfg.name);
+  var ansLast = ansSheet.getLastRow();
+  if (ansLast > 1) {
+    var ansRows = ansSheet.getRange(2, 1, ansLast - 1, ansCfg.keys.length).getValues();
+    for (var a = ansRows.length - 1; a >= 0; a--) {
+      if (String(ansRows[a][1]) === String(data.id)) {
+        ansSheet.deleteRow(a + 2);
+      }
+    }
+  }
+  return { message: "Data pendaftaran berhasil dihapus." };
+}
+
+function getRekrutmenStats(formId) {
+  var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
+  var allSubs = readRows(subCfg);
+  var subs = allSubs;
+  if (formId) {
+    subs = allSubs.filter(function (s) {
+      return String(s.formId) === String(formId);
+    });
+  }
+
+  var total = subs.length;
+  var menunggu = 0, lolos = 0, tidakLolos = 0;
+  for (var i = 0; i < subs.length; i++) {
+    var st = subs[i].status;
+    if (st === "lolos") lolos++;
+    else if (st === "tidak_lolos") tidakLolos++;
+    else menunggu++;
+  }
+  return {
+    total: total,
+    menunggu: menunggu,
+    lolos: lolos,
+    tidakLolos: tidakLolos
+  };
+}

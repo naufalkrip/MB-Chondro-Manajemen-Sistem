@@ -84,19 +84,27 @@ export function Anggota() {
   };
 
   const filtered = useMemo(() => {
-    return anggota.filter((a) => {
-      if (search) {
-        const q = search.toLowerCase();
-        if (
-          !`${a.id} ${a.nama} ${a.divisi} ${a.jabatan} ${a.noHp}`.toLowerCase().includes(q)
-        ) {
-          return false;
+    return anggota
+      .filter((a) => {
+        if (search) {
+          const q = search.toLowerCase();
+          if (
+            !`${a.id} ${a.nama} ${a.divisi} ${a.jabatan} ${a.noHp}`.toLowerCase().includes(q)
+          ) {
+            return false;
+          }
         }
-      }
-      if (filterDivisi && a.divisi !== filterDivisi) return false;
-      if (filterStatus && a.status !== filterStatus) return false;
-      return true;
-    });
+        if (filterDivisi && a.divisi !== filterDivisi) return false;
+        if (filterStatus && a.status !== filterStatus) return false;
+        return true;
+      })
+      .sort((a, b) => {
+        const divisiA = a.divisi ?? "";
+        const divisiB = b.divisi ?? "";
+        const divisiCompare = divisiA.localeCompare(divisiB);
+        if (divisiCompare !== 0) return divisiCompare;
+        return (a.nama ?? "").localeCompare(b.nama ?? "");
+      });
   }, [anggota, search, filterDivisi, filterStatus]);
 
   const pagination = usePagination(filtered.length, 10);

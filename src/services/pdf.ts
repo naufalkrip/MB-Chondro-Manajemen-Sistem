@@ -1,6 +1,14 @@
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Absensi, Anggota, Transaksi } from "../types";
+import type {
+  Absensi,
+  Anggota,
+  Transaksi,
+  TransaksiGroupWithStats,
+  TransaksiDetail,
+  RekrutmenForm,
+  RekrutmenSubmissionWithAnswers,
+} from "../types";
 import {
   formatRupiah,
   formatTanggal,
@@ -19,22 +27,46 @@ import poppinsBold from "../aset/fonts/Poppins-Bold.ttf";
 // ============================================================
 // Satu template global untuk SEMUA jenis laporan:
 //   - Kertas F4 / Folio 215.9 × 330.2 mm (portrait / landscape otomatis)
-//   - Font: Poppins (di-embed saat runtime; fallback Helvetica bila gagal), satu keluarga untuk seluruh dokumen
-//   - Kop resmi: logo + MB CHONDRO + SISTEM MANAJEMEN ORGANISASI
-//   - Judul laporan, periode, tanggal cetak, summary, tabel, dan footer konsisten
-//   - Header tabel diulang otomatis pada setiap halaman lanjutan
+//   - Font: Poppins (Regular, SemiBold, Bold) di-embed saat runtime (fallback Helvetica)
+//   - Kop Resmi 2-Tahap:
+//       1. Identitas Organisasi (Logo + MB CHONDRO + SISTEM MANAJEMEN) di kiri, Periode & Cetak di kanan
+//       2. Garis Pemisah Ganda (Burgundy + Slate)
+//       3. Judul & Subtitle Laporan di bawah garis kop
+//   - Rekap Metrik: Kartu ringkasan clean dengan aksen burgundy
+//   - Tabel: Lebar kolom proporsional, alignment presisi, auto linebreak, header berulang di halaman lanjutan
+//   - Footer: Garis pemisah tipis + identitas di kiri + "Halaman X dari Y" di kanan
 // ============================================================
 
-const BURGUNDY: [number, number, number] = [127, 29, 29]; // maroon — identitas MB CHONDRO
-const NAVY: [number, number, number] = [15, 23, 42]; // dark navy — teks utama
-const BODY: [number, number, number] = [31, 41, 55]; // charcoal — isi tabel
-const SLATE: [number, number, number] = [71, 85, 105]; // slate — teks sekunder
-const MUTED: [number, number, number] = [100, 116, 139]; // muted — label / footer
+const BURGUNDY: [number, number, number] = [127, 29, 29]; // #7F1D1D - Merah Maroon MB Chondro
+const NAVY: [number, number, number] = [15, 23, 42]; // #0F172A - Teks Utama / Judul
+const BODY: [number, number, number] = [30, 41, 59]; // #1E293B - Teks Isi Tabel
+const SLATE: [number, number, number] = [71, 85, 105]; // #475569 - Teks Sekunder
+const MUTED: [number, number, number] = [100, 116, 139]; // #64748B - Label / Tanggal
 const WHITE: [number, number, number] = [255, 255, 255];
-const LINE: [number, number, number] = [226, 232, 240]; // light gray — border
-const ROW_ALT: [number, number, number] = [248, 250, 252]; // baris berselang
+const LINE: [number, number, number] = [226, 232, 240]; // #E2E8F0 - Border Tipis
+const ROW_ALT: [number, number, number] = [248, 250, 252]; // #F8FAFC - Baris Berselang
 
-const FONT_FALLBACK = "helvetica"; // fallback bila Poppins gagal dimuat
+// Warna latar status kehadiran pada matriks rekap
+const STATUS_BG: Record<string, [number, number, number]> = {
+  "•": [241, 245, 249], // Hadir - netral terang
+  I: [254, 249, 195], // Izin - kuning lembut
+  S: [254, 226, 226], // Sakit - merah muda lembut
+  C: [237, 233, 254], // Cuti - ungu muda
+  A: [255, 237, 213], // Alpa - oranye muda
+  "*": [248, 250, 252], // Tidak ada catatan - abu-abu sangat muda
+};
+
+// Warna teks status kehadiran
+const STATUS_TEXT: Record<string, [number, number, number]> = {
+  "•": [30, 41, 59], // Hadir - gelap netral
+  I: [161, 98, 7], // Izin - kuning/coklat tua
+  S: [185, 28, 28], // Sakit - merah tua
+  C: [109, 40, 217], // Cuti - ungu tua
+  A: [194, 65, 12], // Alpa - oranye tua
+  "*": [148, 163, 184], // Tidak ada catatan - abu-abu
+};
+
+const FONT_FALLBACK = "helvetica";
 let fontFamily = FONT_FALLBACK;
 let fontsReady = false;
 
@@ -73,27 +105,24 @@ async function ensureFonts(doc: jsPDF) {
   doc.setFont(fontFamily, "normal");
 }
 
-/** Style "tebal" yang tersedia: SemiBold untuk Poppins, Bold untuk fallback. */
 function semiboldStyle(): string {
   return fontFamily === "Poppins" ? "semibold" : "bold";
 }
 
-// F4 / Folio
-const F4: [number, number] = [215.9, 330.2];
+// Standar Ukuran Kertas F4 / Folio (Indonesia): 215 × 330 mm (21.5 cm × 33.0 cm)
+const F4: [number, number] = [215, 330];
 
 const MARGIN = 16;
 const MARGIN_BOTTOM = 16;
 
-const FONT_ORG = 18; // nama organisasi pada kop
-const FONT_ORG_SUB = 10; // tagline organisasi
-const FONT_TITLE = 20; // judul laporan (elemen paling menonjol di kop)
-const FONT_SUBTITLE = 10.5; // deskripsi laporan
-const FONT_META = 9.5; // periode & tanggal cetak
-const FONT_TABLE = 9.5; // isi & header tabel
-const FONT_FOOTER = 8.5;
+const FONT_ORG = 16.5; // Nama organisasi
+const FONT_ORG_SUB = 9.5; // Sub-identitas organisasi
+const FONT_TITLE = 14.5; // Judul laporan
+const FONT_SUBTITLE = 9; // Deskripsi laporan
+const FONT_META = 8.5; // Periode & tanggal cetak
+const FONT_TABLE = 8.5; // Isi & header tabel
+const FONT_FOOTER = 8; // Footer dokumen
 
-// ---------- Simbol status kehadiran pada matriks rekap ----------
-// Hadir ditampilkan sebagai titik agar tabel tidak ramai saat jumlah sesi banyak.
 const SIMBOL_KEHADIRAN: Record<string, string> = {
   H: "•",
   I: "I",
@@ -106,8 +135,7 @@ function simbolKehadiran(huruf: string): string {
   return SIMBOL_KEHADIRAN[huruf] ?? huruf;
 }
 
-// ---------- Logo (dipotong area transparan, proporsional, tanpa kotak putih) ----------
-
+// ---------- Logo Cache & Transparansi ----------
 let logoCache: { dataUrl: string; w: number; h: number } | null = null;
 
 function loadImage(src: string): Promise<HTMLImageElement> {
@@ -119,10 +147,6 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   });
 }
 
-/**
- * Muat logo, buang area transparan di sekelilingnya, lalu jadikan JPEG.
- * Hasilnya logo tetap proporsional dan tidak muncul kotak putih di belakangnya.
- */
 async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | null> {
   if (logoCache) return logoCache;
   try {
@@ -138,7 +162,6 @@ async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | nu
     if (!ctx) return null;
     ctx.drawImage(img, 0, 0, w, h);
 
-    // Cari bounding box pixel non-transparan (buang margin transparan)
     const imageData = ctx.getImageData(0, 0, w, h);
     const data = imageData.data;
     let minX = w;
@@ -156,7 +179,7 @@ async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | nu
       }
     }
     if (maxX < minX || maxY < minY) {
-      logoCache = { dataUrl: canvas.toDataURL("image/jpeg", 0.92), w, h };
+      logoCache = { dataUrl: canvas.toDataURL("image/png"), w, h };
       return logoCache;
     }
 
@@ -167,10 +190,8 @@ async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | nu
     crop.height = ch;
     const cctx = crop.getContext("2d");
     if (!cctx) return null;
-    cctx.fillStyle = "#ffffff";
-    cctx.fillRect(0, 0, cw, ch);
     cctx.drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
-    logoCache = { dataUrl: crop.toDataURL("image/jpeg", 0.92), w: cw, h: ch };
+    logoCache = { dataUrl: crop.toDataURL("image/png"), w: cw, h: ch };
     return logoCache;
   } catch {
     logoCache = null;
@@ -178,107 +199,128 @@ async function getLogo(): Promise<{ dataUrl: string; w: number; h: number } | nu
   }
 }
 
-// ---------- Elemen kop ----------
+// ---------- Elemen Garis & Header ----------
 
 function addTopBand(doc: jsPDF) {
   const w = doc.internal.pageSize.getWidth();
   doc.setFillColor(...BURGUNDY);
-  doc.rect(0, 0, w, 3, "F");
+  doc.rect(0, 0, w, 2.5, "F");
 }
 
 function drawDoubleLine(doc: jsPDF, y: number) {
   const w = doc.internal.pageSize.getWidth();
   doc.setDrawColor(...BURGUNDY);
-  doc.setLineWidth(0.6);
+  doc.setLineWidth(0.5);
   doc.line(MARGIN, y, w - MARGIN, y);
-  doc.setDrawColor(...SLATE);
+  doc.setDrawColor(...LINE);
   doc.setLineWidth(0.15);
-  doc.line(MARGIN, y + 1.2, w - MARGIN, y + 1.2);
+  doc.line(MARGIN, y + 1.0, w - MARGIN, y + 1.0);
 }
 
-/** Header halaman pertama: logo + identitas organisasi + judul + periode + tanggal cetak */
-async function drawFullHeader(doc: jsPDF, judul: string, subtitle: string, periode: string): Promise<number> {
+/**
+ * Header Halaman Pertama:
+ * 1. Kop Organisasi di atas (Logo + Identitas di kiri, Periode + Dicetak di kanan).
+ * 2. Garis Pemisah Ganda.
+ * 3. Judul & Subtitle Laporan di bawah garis pemisah.
+ */
+async function drawFullHeader(
+  doc: jsPDF,
+  judul: string,
+  subtitle: string,
+  periode: string
+): Promise<number> {
   await ensureFonts(doc);
   const w = doc.internal.pageSize.getWidth();
-  const usable = w - MARGIN * 2;
   addTopBand(doc);
 
-  // Logo proporsional — tinggi tetap, lebar mengikuti rasio asli (hasil crop)
+  // --- 1. KOP ORGANISASI ---
   let textX = MARGIN;
   const logo = await getLogo();
   if (logo) {
-    const logoH = 12;
+    const logoH = 13.5;
     const logoW = (logoH * logo.w) / logo.h;
     try {
-      doc.addImage(logo.dataUrl, "JPEG", MARGIN, 8, logoW, logoH);
-      textX = MARGIN + logoW + 6;
+      doc.addImage(logo.dataUrl, "PNG", MARGIN, 8, logoW, logoH);
+      textX = MARGIN + logoW + 5.5;
     } catch {
-      // abaikan jika logo gagal dirender
+      // jika render gagal, fallback ke textX normal
     }
   }
 
+  // Nama Organisasi
   doc.setFont(fontFamily, semiboldStyle());
   doc.setFontSize(FONT_ORG);
   doc.setTextColor(...BURGUNDY);
-  doc.text("MB CHONDRO", textX, 16.5);
+  doc.text("MB CHONDRO", textX, 15.5);
 
+  // Tagline / Identitas
   doc.setFont(fontFamily, semiboldStyle());
   doc.setFontSize(FONT_ORG_SUB);
   doc.setTextColor(...NAVY);
-  doc.text("SISTEM MANAJEMEN ORGANISASI", textX, 22.5);
+  doc.text("SISTEM MANAJEMEN ORGANISASI", textX, 21.5);
 
-  // Judul laporan — ukuran menyesuaikan agar tidak bertabrakan dengan periode
-  const title = `LAPORAN ${judul.toUpperCase()}`;
-  let titleSize = FONT_TITLE;
-  doc.setFont(fontFamily, "bold");
-  doc.setFontSize(titleSize);
-  while (titleSize > 14 && doc.getTextWidth(title) > usable * 0.58) {
-    titleSize -= 0.5;
-    doc.setFontSize(titleSize);
-  }
-  doc.setTextColor(...NAVY);
-  doc.text(title, MARGIN, 31.5);
-
+  // Meta Periode & Tanggal Cetak (Kanan Atas)
   doc.setFont(fontFamily, "normal");
-  doc.setFontSize(FONT_SUBTITLE);
-  doc.setTextColor(...MUTED);
-  doc.text(subtitle, MARGIN, 37.5);
-
   doc.setFontSize(FONT_META);
   doc.setTextColor(...SLATE);
-  doc.text(`Periode: ${periode}`, w - MARGIN, 31.5, { align: "right" });
-  doc.text(`Dicetak: ${formatTanggalPanjang(new Date().toISOString())}`, w - MARGIN, 37.5, { align: "right" });
 
-  drawDoubleLine(doc, 42.5);
+  const periodeText = `Periode: ${periode}`;
+  const cetakText = `Dicetak: ${formatTanggalPanjang(new Date().toISOString())}`;
+  doc.text(periodeText, w - MARGIN, 15.5, { align: "right" });
+  doc.text(cetakText, w - MARGIN, 21.5, { align: "right" });
 
-  return 46.5;
+  // Garis Pemisah Kop
+  const lineY = 26.5;
+  drawDoubleLine(doc, lineY);
+
+  // --- 2. JUDUL & SUBTITLE LAPORAN (DI BAWAH GARIS KOP) ---
+  let currentY = lineY + 7;
+  const reportTitle = `LAPORAN ${judul.toUpperCase()}`;
+
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(FONT_TITLE);
+  doc.setTextColor(...NAVY);
+  doc.text(reportTitle, MARGIN, currentY);
+
+  if (subtitle && subtitle.trim()) {
+    currentY += 5;
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(FONT_SUBTITLE);
+    doc.setTextColor(...SLATE);
+    doc.text(subtitle, MARGIN, currentY, { maxWidth: w - MARGIN * 2 });
+  }
+
+  return currentY + 4;
 }
 
-/** Header halaman lanjutan: ringkas, identitas singkat + garis pemisah */
+/** Header Halaman Lanjutan (Page 2+) */
 function drawCompactHeader(doc: jsPDF) {
   addTopBand(doc);
   doc.setFont(fontFamily, semiboldStyle());
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(...BURGUNDY);
-  doc.text("MB CHONDRO — SISTEM MANAJEMEN ORGANISASI", MARGIN, 11.5);
-  drawDoubleLine(doc, 14.5);
+  doc.text("MB CHONDRO — SISTEM MANAJEMEN ORGANISASI", MARGIN, 11);
+  drawDoubleLine(doc, 13.5);
 }
 
-/** Footer: garis tipis + nama organisasi (kiri) + nomor halaman (kanan) */
+/** Footer Halaman: Garis tipis + Nama sistem di kiri + Nomor halaman di kanan */
 function drawPageFooter(doc: jsPDF, pageNumber: number, totalPages: number) {
   const w = doc.internal.pageSize.getWidth();
   const h = doc.internal.pageSize.getHeight();
   doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.25);
-  doc.line(MARGIN, h - MARGIN_BOTTOM, w - MARGIN, h - MARGIN_BOTTOM);
+  doc.setLineWidth(0.2);
+  doc.line(MARGIN, h - MARGIN_BOTTOM + 2, w - MARGIN, h - MARGIN_BOTTOM + 2);
+
   doc.setFont(fontFamily, "normal");
   doc.setFontSize(FONT_FOOTER);
   doc.setTextColor(...MUTED);
-  doc.text("MB CHONDRO — Sistem Manajemen Organisasi", MARGIN, h - MARGIN_BOTTOM + 5.5);
-  doc.text(`Halaman ${pageNumber} dari ${totalPages}`, w - MARGIN, h - MARGIN_BOTTOM + 5.5, { align: "right" });
+  doc.text("MB CHONDRO — Sistem Manajemen Organisasi", MARGIN, h - MARGIN_BOTTOM + 7);
+  doc.text(`Halaman ${pageNumber} dari ${totalPages}`, w - MARGIN, h - MARGIN_BOTTOM + 7, {
+    align: "right",
+  });
 }
 
-// ---------- Ringkasan (rekap di atas tabel) ----------
+// ---------- Summary / Kartu Ringkasan ----------
 
 export interface SummaryItem {
   label: string;
@@ -286,65 +328,125 @@ export interface SummaryItem {
 }
 
 /**
- * Ringkasan berupa grid statistik clean: label kecil di atas, nilai tebal di bawah.
- * Ada latar sangat terang + border abu tipis + aksen burgundy tipis di sisi kiri,
- * sehingga tampak seperti kartu ringkas tanpa menghilangkan kesan formal.
- * Semua kolom sama lebar sehingga benar-benar sejajar.
+ * Render panel kartu ringkasan metrik (Summary Box) yang rapi, fluid, dan tidak tumpang tindih.
  */
 function drawSummary(doc: jsPDF, items: SummaryItem[], startY: number): number {
+  if (!items || items.length === 0) return startY;
+
   const w = doc.internal.pageSize.getWidth();
   const usable = w - MARGIN * 2;
-  const minColW = 38;
-  const perRow = Math.max(1, Math.min(items.length, Math.floor(usable / minColW)));
-  const rows = Math.ceil(items.length / perRow);
+  const numItems = items.length;
 
-  const padTop = 3.4;
-  const padBottom = 3.4;
-  const lineH = 5.9;
-  const labelSize = 8;
-  const valueSize = 11.5;
+  // Tentukan kolom (maksimal 4 atau 5 per baris agar teks leluasa)
+  const maxCols = numItems <= 4 ? numItems : numItems === 5 ? 5 : 4;
+  const rows = Math.ceil(numItems / maxCols);
+
+  const padTop = 3.5;
+  const padBottom = 3.5;
+  const rowH = 11;
+  const labelSize = 7.5;
+  const valueSize = 10.5;
 
   const accentW = 1.5;
-  const padLeft = 4.5;
-  const padRight = 4.5;
+  const padLeft = 4;
+  const padRight = 4;
   const boxX = MARGIN;
   const boxY = startY + 1;
   const boxW = usable;
-  const boxH = padTop + rows * lineH + padBottom;
-  const cellW = (boxW - accentW - padLeft - padRight) / perRow;
+  const boxH = padTop + rows * rowH + padBottom;
+  const cellW = (boxW - accentW - padLeft - padRight) / maxCols;
 
-  // Latar sangat terang + border tipis
+  // Background terang & border tipis
   doc.setFillColor(...ROW_ALT);
   doc.setDrawColor(...LINE);
-  doc.setLineWidth(0.3);
-  doc.roundedRect(boxX, boxY, boxW, boxH, 2, 2, "FD");
+  doc.setLineWidth(0.25);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 1.5, 1.5, "FD");
 
-  // Aksen burgundy tipis di tepi kiri (warna identitas MB CHONDRO)
+  // Aksen merah maroon di tepi kiri
   doc.setFillColor(...BURGUNDY);
-  doc.roundedRect(boxX, boxY + 2, accentW, boxH - 4, 0.75, 0.75, "F");
+  doc.roundedRect(boxX, boxY + 1.5, accentW, boxH - 3, 0.75, 0.75, "F");
 
   items.forEach((item, i) => {
-    const col = i % perRow;
-    const row = Math.floor(i / perRow);
-    const x = boxX + accentW + padLeft + col * cellW;
-    const labelY = boxY + padTop + row * lineH;
+    const col = i % maxCols;
+    const row = Math.floor(i / maxCols);
+    const x = boxX + accentW + padLeft + col * cellW + 2;
+    const labelY = boxY + padTop + row * rowH + 2.5;
+
+    // Label
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(labelSize);
+    doc.setTextColor(...MUTED);
+    doc.text(item.label, x, labelY, { maxWidth: cellW - 4 });
+
+    // Nilai
+    doc.setFont(fontFamily, "bold");
+    doc.setFontSize(valueSize);
+    doc.setTextColor(...NAVY);
+    doc.text(item.value, x, labelY + 4.5, { maxWidth: cellW - 4 });
+  });
+
+  return boxY + boxH + 4.5;
+}
+
+/**
+ * Ringkasan Khusus Matriks Rekap Absensi (Grid 4 Kolom x 2 Baris Seimbang)
+ */
+function drawAbsensiRekapSummary(
+  doc: jsPDF,
+  items: SummaryItem[],
+  startY: number
+): number {
+  const w = doc.internal.pageSize.getWidth();
+  const usable = w - MARGIN * 2;
+
+  const COLS = 4;
+  const ROWS = 2;
+
+  const padTop = 3.5;
+  const padBottom = 3.5;
+  const rowH = 11.5;
+  const labelSize = 8;
+  const valueSize = 11;
+
+  const accentW = 1.5;
+  const padLeft = 4;
+  const padRight = 4;
+  const boxX = MARGIN;
+  const boxY = startY + 1;
+  const boxW = usable;
+  const boxH = padTop + ROWS * rowH + padBottom;
+  const cellW = (boxW - accentW - padLeft - padRight) / COLS;
+
+  doc.setFillColor(...ROW_ALT);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 1.5, 1.5, "FD");
+
+  doc.setFillColor(...BURGUNDY);
+  doc.roundedRect(boxX, boxY + 1.5, accentW, boxH - 3, 0.75, 0.75, "F");
+
+  items.forEach((item, idx) => {
+    const col = idx % COLS;
+    const row = Math.floor(idx / COLS);
+    const x = boxX + accentW + padLeft + col * cellW + cellW / 2;
+    const labelY = boxY + padTop + row * rowH + 2.5;
 
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(labelSize);
     doc.setTextColor(...MUTED);
-    doc.text(item.label, x, labelY);
+    doc.text(item.label, x, labelY, { align: "center" });
 
     doc.setFont(fontFamily, "bold");
     doc.setFontSize(valueSize);
     doc.setTextColor(...NAVY);
-    doc.text(item.value, x, labelY + 4.3);
+    doc.text(item.value, x, labelY + 4.8, { align: "center" });
   });
 
   return boxY + boxH + 4;
 }
 
 // ============================================================
-// GENERATOR UTAMA (template global)
+// GENERATOR UTAMA PDF
 // ============================================================
 
 type Align = "left" | "center" | "right";
@@ -353,10 +455,11 @@ interface TableOptions {
   columns: string[];
   rows: (string | number)[][];
   columnAligns?: Align[];
-  columnWidths?: number[];
+  columnWidthRatios?: number[]; // rasio proporsional lebar kolom
   cellPadding?: number | { top: number; right: number; bottom: number; left: number };
   minCellHeight?: number;
   columnFontSizes?: number[];
+  didParseCell?: (hookData: any) => void;
 }
 
 interface FooterTableOptions extends TableOptions {
@@ -368,6 +471,7 @@ interface FooterTableOptions extends TableOptions {
 interface CreatePdfOptions extends TableOptions {
   orientation?: "portrait" | "landscape";
   summary?: SummaryItem[];
+  drawSummaryCustom?: (doc: jsPDF, items: SummaryItem[], startY: number) => number;
   legend?: string;
   tableFontSize?: number;
   fileName?: string;
@@ -376,60 +480,78 @@ interface CreatePdfOptions extends TableOptions {
 
 function buildColumnStyles(
   columnAligns: Align[] | undefined,
-  columnWidths: number[] | undefined,
-  scale: number,
+  columnWidthRatios: number[] | undefined,
+  usableWidth: number,
   columnFontSizes?: number[]
 ): Record<number, { halign?: Align; cellWidth?: number; fontSize?: number }> {
   const styles: Record<number, { halign?: Align; cellWidth?: number; fontSize?: number }> = {};
+  const totalRatio = columnWidthRatios?.reduce((a, b) => a + b, 0) ?? 0;
+
   columnAligns?.forEach((align, i) => {
     if (align) styles[i] = { ...(styles[i] ?? {}), halign: align };
   });
-  columnWidths?.forEach((width, i) => {
-    if (width) styles[i] = { ...(styles[i] ?? {}), cellWidth: width * scale };
+
+  columnWidthRatios?.forEach((ratio, i) => {
+    if (ratio && totalRatio > 0) {
+      styles[i] = {
+        ...(styles[i] ?? {}),
+        cellWidth: (ratio / totalRatio) * usableWidth,
+      };
+    }
   });
+
   columnFontSizes?.forEach((fontSize, i) => {
     if (fontSize) styles[i] = { ...(styles[i] ?? {}), fontSize };
   });
+
   return styles;
 }
 
-async function createPdf(judul: string, subtitle: string, periode: string, opts: CreatePdfOptions) {
+async function createPdf(
+  judul: string,
+  subtitle: string,
+  periode: string,
+  opts: CreatePdfOptions
+) {
   const orientation = opts.orientation ?? "portrait";
   const doc = new jsPDF({ orientation, unit: "mm", format: F4 });
   const fontSize = opts.tableFontSize ?? FONT_TABLE;
   await ensureFonts(doc);
 
-  // Lebar kolom disesuaikan agar tabel mengisi lebar kertas secara proporsional
   const usableWidth = doc.internal.pageSize.getWidth() - MARGIN * 2;
-  const widthSum = opts.columnWidths?.reduce((a, b) => a + b, 0) ?? 0;
-  const widthScale = widthSum > 0 ? usableWidth / widthSum : 1;
-
   let startY = await drawFullHeader(doc, judul, subtitle, periode);
 
-  const drawMetaLine = (text: string) => {
+  if (opts.summary && opts.summary.length > 0) {
+    if (opts.drawSummaryCustom) {
+      startY = opts.drawSummaryCustom(doc, opts.summary, startY);
+    } else {
+      startY = drawSummary(doc, opts.summary, startY);
+    }
+  }
+
+  if (opts.legend) {
     doc.setFont(fontFamily, "normal");
     doc.setFontSize(FONT_META);
     doc.setTextColor(...SLATE);
-    doc.text(text, MARGIN, startY, { maxWidth: usableWidth });
+    doc.text(opts.legend, MARGIN, startY, { maxWidth: usableWidth });
     startY += 4.5;
-  };
-
-  if (opts.summary && opts.summary.length > 0) {
-    startY = drawSummary(doc, opts.summary, startY);
   }
-  if (opts.legend) drawMetaLine(opts.legend);
 
-  startY += 1.5;
+  startY += 1;
 
   const runTable = (
     table: TableOptions,
     tableStartY: number,
-    scale: number,
     tableFontSizeOverride?: number
   ) => {
     const tableFont = tableFontSizeOverride ?? fontSize;
-    const tableWidthSum = table.columnWidths?.reduce((a, b) => a + b, 0) ?? 0;
-    const tableScale = tableWidthSum > 0 ? usableWidth / tableWidthSum : scale;
+    const colStyles = buildColumnStyles(
+      table.columnAligns,
+      table.columnWidthRatios,
+      usableWidth,
+      table.columnFontSizes
+    );
+
     autoTable(doc, {
       startY: tableStartY,
       head: [table.columns],
@@ -438,13 +560,13 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
       styles: {
         font: fontFamily,
         fontSize: tableFont,
-        cellPadding: table.cellPadding ?? { top: 2.2, right: 2.5, bottom: 2.2, left: 2.5 },
+        cellPadding: table.cellPadding ?? { top: 2.4, right: 2.2, bottom: 2.4, left: 2.2 },
         textColor: BODY,
         lineColor: LINE,
         lineWidth: 0.15,
         overflow: "linebreak",
         valign: "middle",
-        minCellHeight: table.minCellHeight,
+        minCellHeight: table.minCellHeight ?? 6.5,
       },
       headStyles: {
         fillColor: BURGUNDY,
@@ -452,63 +574,62 @@ async function createPdf(judul: string, subtitle: string, periode: string, opts:
         fontStyle: semiboldStyle() as "bold" | "italic" | "normal" | "bolditalic",
         fontSize: tableFont,
         halign: "center",
-        cellPadding: table.cellPadding
-          ? typeof table.cellPadding === "object"
-            ? { top: (table.cellPadding.top ?? 2.2) + 0.3, right: table.cellPadding.right ?? 2.5, bottom: (table.cellPadding.bottom ?? 2.2) + 0.3, left: table.cellPadding.left ?? 2.5 }
-            : (table.cellPadding as number) + 0.3
-          : { top: 2.4, right: 2.5, bottom: 2.4, left: 2.5 },
+        cellPadding: { top: 2.8, right: 2.2, bottom: 2.8, left: 2.2 },
       },
       alternateRowStyles: { fillColor: ROW_ALT },
-      columnStyles: buildColumnStyles(table.columnAligns, table.columnWidths, tableScale, table.columnFontSizes),
+      columnStyles: colStyles,
       rowPageBreak: "avoid",
+      didParseCell: table.didParseCell,
       didDrawPage: (data) => {
-        if (data.pageNumber > 1) drawCompactHeader(doc);
+        if (data.pageNumber > 1) {
+          drawCompactHeader(doc);
+        }
       },
     });
   };
 
-  runTable(opts, startY, widthScale);
+  runTable(opts, startY);
 
+  // Footer Table (mis. Rekap Per Anggota pada Laporan Absensi)
   if (opts.footerTable) {
     const ft = opts.footerTable;
-    const endY =
-      typeof (doc as unknown as { lastAutoTable?: { finalY?: number } }).lastAutoTable?.finalY === "number"
-        ? (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY
-        : startY;
-
-    let y = endY + 10;
+    const lastY = (doc as any).lastAutoTable?.finalY ?? startY;
     const pageH = doc.internal.pageSize.getHeight();
-    if (ft.startNewPage || y + 18 > pageH - MARGIN_BOTTOM) {
-      doc.addPage();
-      y = 23;
+    let y = lastY + 8;
+
+    if (ft.startNewPage || y + 24 > pageH - MARGIN_BOTTOM) {
+      doc.addPage(F4, orientation);
+      drawCompactHeader(doc);
+      y = 20;
     }
+
     doc.setFont(fontFamily, "bold");
-    doc.setFontSize(10.5);
+    doc.setFontSize(10);
     doc.setTextColor(...NAVY);
     doc.text(ft.title, MARGIN, y);
-    doc.setDrawColor(...BURGUNDY);
-    doc.setLineWidth(0.4);
-    doc.line(MARGIN, y + 1.6, doc.internal.pageSize.getWidth() - MARGIN, y + 1.6);
-    y += 6;
 
-    runTable(ft, y, widthScale, ft.tableFontSize);
+    doc.setDrawColor(...BURGUNDY);
+    doc.setLineWidth(0.35);
+    doc.line(MARGIN, y + 1.5, doc.internal.pageSize.getWidth() - MARGIN, y + 1.5);
+    y += 5.5;
+
+    runTable(ft, y, ft.tableFontSize);
   }
 
+  // Draw footer on all pages
   const totalPages = doc.getNumberOfPages();
   for (let i = 1; i <= totalPages; i++) {
     doc.setPage(i);
     drawPageFooter(doc, i, totalPages);
   }
 
-  const slug = judul.toLowerCase().replace(/\s+/g, "-");
+  const slug = judul.toLowerCase().replace(/[^a-z0-9]+/g, "-");
   doc.save(opts.fileName ?? `Laporan-${slug}-${new Date().toISOString().slice(0, 10)}.pdf`);
 }
 
 // ============================================================
-// LAPORAN PER JENIS
+// 1. LAPORAN DATA ANGGOTA (Portrait F4)
 // ============================================================
-
-/** Laporan data anggota (portrait — tabel sederhana) */
 export async function laporanAnggota(anggota: Anggota[], periode: string) {
   const aktif = anggota.filter((a) => a.status === "Aktif").length;
   const cuti = anggota.filter((a) => a.status === "Cuti").length;
@@ -516,17 +637,17 @@ export async function laporanAnggota(anggota: Anggota[], periode: string) {
 
   const rows = anggota.map((a, i) => [
     i + 1,
-    a.nama,
-    a.divisi,
-    a.jabatan,
-    a.noHp,
-    a.status,
+    a.nama || "-",
+    a.divisi || "-",
+    a.noHp || "-",
+    a.status || "-",
     formatTanggal(a.tanggalBergabung),
     a.keterangan || "-",
   ]);
 
-  await createPdf("DATA ANGGOTA", "Data anggota MB Chondro", periode, {
-    columns: ["No", "Nama Lengkap", "Divisi", "Jabatan", "No. HP", "Status", "Tgl Bergabung", "Keterangan"],
+  await createPdf("DATA ANGGOTA", "Rekapitulasi data seluruh anggota MB Chondro", periode, {
+    orientation: "portrait",
+    columns: ["No", "Nama Lengkap", "Divisi", "No. WhatsApp / HP", "Status", "Tgl Bergabung", "Keterangan"],
     rows,
     summary: [
       { label: "Total Anggota", value: `${anggota.length}` },
@@ -534,29 +655,31 @@ export async function laporanAnggota(anggota: Anggota[], periode: string) {
       { label: "Cuti", value: `${cuti}` },
       { label: "Tidak Aktif", value: `${tidakAktif}` },
     ],
-    columnWidths: [9, 38, 24, 24, 26, 16, 24, 22],
-    columnAligns: ["center", "left", "left", "left", "center", "center", "center", "left"],
+    columnWidthRatios: [8, 38, 24, 24, 18, 22, 28],
+    columnAligns: ["center", "left", "left", "center", "center", "center", "left"],
+    fileName: `Laporan-data-anggota-${new Date().toISOString().slice(0, 10)}.pdf`,
   });
 }
 
-/** Laporan riwayat absensi per catatan (landscape — banyak kolom) */
+// ============================================================
+// 2. LAPORAN RIWAYAT ABSENSI CATATAN (Landscape F4)
+// ============================================================
 export async function laporanAbsensi(absensi: Absensi[], periode: string) {
   const stat = hitungStatKehadiran(absensi);
-  const tidakHadir = stat.izin + stat.sakit + stat.cuti + stat.alpa;
 
   const rows = [...absensi]
     .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""))
     .map((a, i) => [
       i + 1,
-      a.nama,
+      a.nama || "-",
       formatTanggal(a.tanggal),
-      a.kegiatan,
-      a.waktu,
-      a.status,
+      a.kegiatan || "-",
+      a.waktu || "-",
+      a.status || "-",
       a.keterangan || "-",
     ]);
 
-  await createPdf("RIWAYAT ABSENSI", "Rekap riwayat absensi MB Chondro", periode, {
+  await createPdf("RIWAYAT ABSENSI", "Catatan riwayat kehadiran anggota per sesi kegiatan", periode, {
     orientation: "landscape",
     columns: ["No", "Nama Lengkap", "Tanggal", "Kegiatan", "Waktu", "Status", "Keterangan"],
     rows,
@@ -566,19 +689,25 @@ export async function laporanAbsensi(absensi: Absensi[], periode: string) {
       { label: "Total Sakit", value: `${stat.sakit}` },
       { label: "Total Cuti", value: `${stat.cuti}` },
       { label: "Total Alpa", value: `${stat.alpa}` },
-      { label: "Tidak Hadir", value: `${tidakHadir}` },
       { label: "Persentase Kehadiran", value: `${stat.persentase}%` },
     ],
-    columnWidths: [9, 55, 22, 75, 16, 16, 60],
+    columnWidthRatios: [8, 48, 22, 54, 18, 18, 44],
     columnAligns: ["center", "left", "center", "left", "center", "center", "left"],
+    fileName: `Laporan-riwayat-absensi-${new Date().toISOString().slice(0, 10)}.pdf`,
   });
 }
 
-/** Laporan rekap kehadiran berbentuk matriks (anggota × sesi kegiatan + tanggal) */
-export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[], periode: string) {
+// ============================================================
+// 3. LAPORAN REKAP KEHADIRAN MATRIKS (Landscape/Portrait F4)
+// ============================================================
+export async function laporanAbsensiRekap(
+  anggota: Anggota[],
+  absensi: Absensi[],
+  periode: string
+) {
   const sesiMap = new Map<string, Absensi[]>();
   for (const a of absensi) {
-    const k = `${a.tanggal}|${(a.kegiatan || "").trim().toLowerCase()}`;
+    const k = `${a.tanggal}|${(a.kegiatan || "").trim()}`;
     const arr = sesiMap.get(k);
     if (arr) arr.push(a);
     else sesiMap.set(k, [a]);
@@ -592,7 +721,6 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
     return (xk || "").localeCompare(yk || "");
   });
 
-  // Header kolom: tanggal + nama kegiatan/tempat (bukan waktu)
   const kolomHeader = kolomKunci.map((k) => {
     const [tanggal, kegiatan] = k.split("|");
     return `${formatTanggal(tanggal).slice(0, 5)}\n${kegiatan || "Kegiatan"}`;
@@ -602,28 +730,32 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
   const urutanPrioritas = ["Hadir", "Izin", "Sakit", "Cuti", "Alpa"];
   const ambilTerbaik = (a: string, b: string) =>
     urutanPrioritas.indexOf(a) < urutanPrioritas.indexOf(b) ? a : b;
+
   for (const a of absensi) {
     let m = statusByMember.get(a.idAnggota);
     if (!m) {
       m = new Map();
       statusByMember.set(a.idAnggota, m);
     }
-    const kunci = `${a.tanggal}|${(a.kegiatan || "").trim().toLowerCase()}`;
+    const kunci = `${a.tanggal}|${(a.kegiatan || "").trim()}`;
     const huruf = statusKeHuruf(a.status);
     m.set(kunci, m.has(kunci) ? ambilTerbaik(huruf, m.get(kunci) as string) : huruf);
   }
 
   const rows = anggota.map((ag, i) => [
     i + 1,
-    ag.nama,
+    ag.nama || "-",
     ag.divisi || "-",
     ...kolomKunci.map((k) => simbolKehadiran(statusByMember.get(ag.id)?.get(k) ?? "*")),
   ]);
 
-  // Rekapan per anggota (ringkas dalam satu kolom teks) untuk ditaruh di ujung laporan
   const rekapRows = anggota.map((ag, i) => {
     const m = statusByMember.get(ag.id);
-    let hadir = 0, izin = 0, sakit = 0, cuti = 0, alpa = 0;
+    let hadir = 0,
+      izin = 0,
+      sakit = 0,
+      cuti = 0,
+      alpa = 0;
     for (const k of kolomKunci) {
       const letter = m?.get(k) ?? "*";
       if (letter === "H") hadir++;
@@ -637,30 +769,13 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
 
   const stat = hitungStatKehadiran(absensi);
   const countDate = Math.max(kolomKunci.length, 1);
+  const isLandscape = countDate > 5;
 
-  // Matriks berisi kolom tanggal → otomatis pakai Landscape F4 bila perlu
-  const fixedW = 8 + 52 + 20;
-  const portraitUsable = 215.9 - MARGIN * 2;
-  const portraitFits = portraitUsable - fixedW >= countDate * 9.5;
-  const usable = (portraitFits ? 215.9 : 330.2) - MARGIN * 2;
-  const dateColW = (usable - fixedW) / countDate;
-  // Kolom tanggal: font header/isi diperkecil secukupnya agar kata terpanjang pada
-  // header kegiatan muat tanpa terpotong aneh di tengah kata (mis. "kenda/l/arejo").
-  // Kolom No/Nama/Divisi tetap memakai ukuran normal agar nama anggota tetap terbaca.
-  const longestWordLen = Math.max(
-    1,
-    ...kolomHeader
-      .flatMap((h) => h.split("\n"))
-      .map((s) => s.trim().split(/\s+/).reduce((m, w) => Math.max(m, w.length), 0))
-  );
-  const charWPerPt = 0.19; // mm per karakter per pt (kalibrasi dari Poppins @9.5pt)
-  const dateTextSpace = Math.max(dateColW - 4, 1); // lebar kolom dikurangi padding kiri+kanan
-  const wordFitFont = dateTextSpace / (longestWordLen * charWPerPt);
-  const dateFontSize = Math.min(FONT_TABLE, Math.max(6.5, wordFitFont));
-  const tableFontSize = Math.min(FONT_TABLE, Math.max(6.5, dateColW * 0.95));
+  const dateRatio = 8;
+  const columnWidthRatios = [8, 52, 24, ...kolomKunci.map(() => dateRatio)];
 
-  await createPdf("RIWAYAT ABSENSI", "Rekap kehadiran anggota per kegiatan + tanggal", periode, {
-    orientation: portraitFits ? "portrait" : "landscape",
+  await createPdf("REKAPITULASI ABSENSI", "Matriks rekap kehadiran anggota per kegiatan & tanggal", periode, {
+    orientation: isLandscape ? "landscape" : "portrait",
     columns: ["No", "Nama Anggota", "Divisi", ...kolomHeader],
     rows,
     summary: [
@@ -672,36 +787,101 @@ export async function laporanAbsensiRekap(anggota: Anggota[], absensi: Absensi[]
       { label: "Total Alpa", value: `${stat.alpa}` },
       { label: "Persentase Kehadiran", value: `${stat.persentase}%` },
     ],
-    tableFontSize,
-    cellPadding: { top: 2.6, right: 2, bottom: 2.6, left: 2 },
-    minCellHeight: 8.5,
-    columnFontSizes: [FONT_TABLE, FONT_TABLE, FONT_TABLE, ...kolomKunci.map(() => dateFontSize)],
-    fileName: `Laporan-rekap-absensi-${new Date().toISOString().slice(0, 10)}.pdf`,
-    columnWidths: [8, 52, 20, ...kolomKunci.map(() => dateColW)],
+    drawSummaryCustom: drawAbsensiRekapSummary,
+    tableFontSize: Math.max(7, Math.min(FONT_TABLE, isLandscape ? 8 : 7.5)),
+    columnWidthRatios,
     columnAligns: ["center", "left", "left", ...kolomKunci.map<Align>(() => "center")],
+    fileName: `Laporan-rekap-absensi-${new Date().toISOString().slice(0, 10)}.pdf`,
+    didParseCell: (hookData) => {
+      if (hookData.column.index >= 3 && hookData.cell.section === "body") {
+        const status = String(hookData.cell.raw);
+        const bg = STATUS_BG[status] ?? STATUS_BG["*"];
+        const tc = STATUS_TEXT[status] ?? STATUS_TEXT["*"];
+        hookData.cell.styles.fillColor = bg;
+        hookData.cell.styles.textColor = tc;
+        hookData.cell.styles.halign = "center";
+        hookData.cell.styles.valign = "middle";
+      }
+    },
     footerTable: {
-      title: "REKAP PER ANGGOTA",
+      title: "REKAPITULASI TOTAL KEHADIRAN PER ANGGOTA",
       columns: ["No", "Nama Anggota", "Hadir", "Izin", "Sakit", "Cuti", "Alpa", "Total"],
       rows: rekapRows,
       tableFontSize: FONT_TABLE,
       startNewPage: true,
-      columnWidths: [10, 66, 17, 17, 17, 17, 17, 17],
+      columnWidthRatios: [10, 60, 18, 18, 18, 18, 18, 20],
       columnAligns: ["center", "left", "center", "center", "center", "center", "center", "center"],
     },
   });
 }
 
-/** Laporan keuangan dengan saldo berjalan (landscape — banyak kolom) */
-export async function laporanKeuangan(transaksi: Transaksi[], periode: string, judulKas: string) {
+// ============================================================
+// 4. LAPORAN KEUANGAN KAS (Kas Chondro & Media) (Landscape F4)
+// ============================================================
+export async function laporanKeuangan(
+  transaksi: Transaksi[],
+  periode: string,
+  judulKas: string
+) {
   const saldo = hitungSaldo(transaksi);
-
   const sorted = [...transaksi].sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || ""));
+
   let running = 0;
   const rows = sorted.map((t, i) => {
     const nominal = Number(t.nominal) || 0;
     const pemasukan = t.jenis === "Pemasukan" ? nominal : 0;
     const pengeluaran = t.jenis === "Pengeluaran" ? nominal : 0;
     running += pemasukan - pengeluaran;
+    return [
+      i + 1,
+      formatTanggal(t.tanggal),
+      t.keterangan || "-",
+      pemasukan ? formatRupiah(pemasukan) : "-",
+      pengeluaran ? formatRupiah(pengeluaran) : "-",
+      formatRupiah(running),
+    ];
+  });
+
+  await createPdf(
+    judulKas.toUpperCase(),
+    `Laporan arus kas pemasukan dan pengeluaran ${judulKas}`,
+    periode,
+    {
+      orientation: "landscape",
+      columns: ["No", "Tanggal", "Keterangan / Rincian Transaksi", "Pemasukan", "Pengeluaran", "Saldo Kas"],
+      rows,
+      summary: [
+        { label: "Total Pemasukan", value: formatRupiah(saldo.pemasukan) },
+        { label: "Total Pengeluaran", value: formatRupiah(saldo.pengeluaran) },
+        { label: "Sisa Saldo Kas", value: formatRupiah(saldo.saldo) },
+      ],
+      columnWidthRatios: [10, 30, 100, 42, 42, 44],
+      columnAligns: ["center", "center", "left", "right", "right", "right"],
+      fileName: `Laporan-${judulKas.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`,
+    }
+  );
+}
+
+// ============================================================
+// 5. LAPORAN TRANSAKSI TEMPORER (Portrait F4)
+// ============================================================
+export async function laporanTransaksi(
+  group: TransaksiGroupWithStats,
+  details: TransaksiDetail[]
+) {
+  const sorted = [...details].sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || ""));
+  let totalPemasukan = 0;
+  let totalPengeluaran = 0;
+  let running = 0;
+
+  const rows = sorted.map((t, i) => {
+    const nominal = Number(t.nominal) || 0;
+    const pemasukan = t.jenis === "Pemasukan" ? nominal : 0;
+    const pengeluaran = t.jenis === "Pengeluaran" ? nominal : 0;
+    totalPemasukan += pemasukan;
+    totalPengeluaran += pengeluaran;
+    running += pemasukan - pengeluaran;
+
     return [
       i + 1,
       formatTanggal(t.tanggal),
@@ -713,16 +893,292 @@ export async function laporanKeuangan(transaksi: Transaksi[], periode: string, j
     ];
   });
 
-  await createPdf(judulKas.toUpperCase(), `Pemasukan dan pengeluaran ${judulKas}`, periode, {
-    orientation: "landscape",
-    columns: ["No", "Tanggal", "Keterangan", "Kategori", "Pemasukan", "Pengeluaran", "Saldo"],
-    rows,
-    summary: [
-      { label: "Total Pemasukan", value: formatRupiah(saldo.pemasukan) },
-      { label: "Total Pengeluaran", value: formatRupiah(saldo.pengeluaran) },
-      { label: "Saldo", value: formatRupiah(saldo.saldo) },
+  const saldo = totalPemasukan - totalPengeluaran;
+  const subtitle = group.keterangan ? `${group.judul} — ${group.keterangan}` : group.judul;
+
+  await createPdf(
+    "TRANSAKSI TEMPORER",
+    subtitle,
+    formatTanggalPanjang(group.tanggal),
+    {
+      orientation: "portrait",
+      columns: ["No", "Tanggal", "Keterangan / Rincian", "Kategori", "Uang Masuk", "Uang Keluar", "Saldo"],
+      rows,
+      summary: [
+        { label: "Nama Transaksi", value: group.judul },
+        { label: "Total Transaksi", value: `${details.length}` },
+        { label: "Total Uang Masuk", value: formatRupiah(totalPemasukan) },
+        { label: "Total Uang Keluar", value: formatRupiah(totalPengeluaran) },
+        { label: "Sisa Saldo", value: formatRupiah(saldo) },
+      ],
+      columnWidthRatios: [8, 22, 54, 26, 28, 28, 30],
+      columnAligns: ["center", "center", "left", "left", "right", "right", "right"],
+      fileName: `Laporan-transaksi-${group.judul.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`,
+    }
+  );
+}
+
+// ============================================================
+// ELEMEN KHUSUS REKRUTMEN: KOTAK KEPUTUSAN & PENILAIAN SELEKSI
+// ============================================================
+function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
+  const w = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const usable = w - MARGIN * 2;
+  const boxX = MARGIN;
+  const boxW = usable;
+  const boxH = 42; // Tinggi proporsional untuk area penilaian + tanda tangan
+
+  let boxY = startY + 3;
+  if (boxY + boxH > pageH - MARGIN_BOTTOM - 2) {
+    boxY = pageH - MARGIN_BOTTOM - boxH - 2;
+  }
+
+  // Background terang & border tipis
+  doc.setFillColor(...ROW_ALT);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.25);
+  doc.roundedRect(boxX, boxY, boxW, boxH, 1.5, 1.5, "FD");
+
+  // Aksen burgundy di sisi kiri
+  doc.setFillColor(...BURGUNDY);
+  doc.roundedRect(boxX, boxY + 1.5, 1.5, boxH - 3, 0.75, 0.75, "F");
+
+  // Judul Box
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(...NAVY);
+  doc.text("HASIL PENILAIAN & KEPUTUSAN SELEKSI CALON ANGGOTA", boxX + 5, boxY + 5.2);
+
+  // Garis tipis pembatas
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.15);
+  doc.line(boxX + 5, boxY + 7.2, boxX + boxW - 5, boxY + 7.2);
+
+  // Checkbox pilihan: Lolos, Cadangan, Tidak Lolos
+  const checkY = boxY + 13;
+  const cbSize = 4.2;
+
+  // 1. Kotak [ ] Lolos
+  const lolosX = boxX + 6;
+  doc.setDrawColor(...NAVY);
+  doc.setLineWidth(0.35);
+  doc.rect(lolosX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(22, 101, 52); // Green
+  doc.text("LOLOS", lolosX + cbSize + 2.5, checkY);
+
+  // 2. Kotak [ ] Cadangan
+  const cadanganX = boxX + 46;
+  doc.setDrawColor(...NAVY);
+  doc.setLineWidth(0.35);
+  doc.rect(cadanganX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 64, 175); // Blue
+  doc.text("CADANGAN", cadanganX + cbSize + 2.5, checkY);
+
+  // 3. Kotak [ ] Tidak Lolos
+  const tidakLolosX = boxX + 92;
+  doc.setDrawColor(...NAVY);
+  doc.setLineWidth(0.35);
+  doc.rect(tidakLolosX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.setFont(fontFamily, "bold");
+  doc.setFontSize(8.5);
+  doc.setTextColor(185, 28, 28); // Red
+  doc.text("TIDAK LOLOS", tidakLolosX + cbSize + 2.5, checkY);
+
+  // Area Catatan Penilai
+  const noteY = boxY + 20.5;
+  doc.setFont(fontFamily, "normal");
+  doc.setFontSize(7.8);
+  doc.setTextColor(...SLATE);
+  doc.text("Catatan Penilai:", boxX + 6, noteY);
+
+  // Garis catatan tangan (handwritten notes)
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.2);
+  doc.line(boxX + 26, noteY, boxX + boxW - 55, noteY);
+  doc.line(boxX + 6, noteY + 5.5, boxX + boxW - 55, noteY + 5.5);
+  doc.line(boxX + 6, noteY + 11, boxX + boxW - 55, noteY + 11);
+  doc.line(boxX + 6, noteY + 16.5, boxX + boxW - 55, noteY + 16.5);
+
+  // Blok Tanda Tangan Penguji di Kanan
+  const signX = boxX + boxW - 48;
+  doc.setFont(fontFamily, "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...SLATE);
+  doc.text("..................., .................... 2026", signX + 22, noteY - 3.5, { align: "center" });
+  doc.text("Tim Penilai / Penguji MB Chondro,", signX + 22, noteY + 1, { align: "center" });
+
+  doc.setFont(fontFamily, "normal");
+  doc.setTextColor(...BODY);
+  doc.text("( .................................................... )", signX + 22, noteY + 17, { align: "center" });
+
+  return boxY + boxH + 3;
+}
+
+/**
+ * Render 1 lembar khusus untuk 1 calon anggota baru (F4 Portrait)
+ */
+async function renderCandidateSheet(
+  doc: jsPDF,
+  form: RekrutmenForm,
+  submission: RekrutmenSubmissionWithAnswers,
+  periodLabel?: string
+) {
+  const nama =
+    submission.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value ||
+    "Calon Anggota";
+  const hp =
+    submission.answers.find(
+      (a) =>
+        a.field.label.toLowerCase().includes("hp") ||
+        a.field.label.toLowerCase().includes("telepon") ||
+        a.field.label.toLowerCase().includes("whatsapp")
+    )?.value ?? "-";
+
+  const statusText =
+    submission.status === "menunggu"
+      ? "Menunggu"
+      : submission.status === "lolos"
+      ? "Lolos"
+      : submission.status === "cadangan"
+      ? "Cadangan"
+      : "Tidak Lolos";
+
+  const subtitle = `${nama} · ${form.title || "Rekrutmen Calon Anggota Baru"}`;
+  const periode = periodLabel || formatTanggalPanjang(submission.submittedAt);
+
+  let startY = await drawFullHeader(doc, "BIODATA & PENILAIAN CALON ANGGOTA", subtitle, periode);
+
+  // Summary ringkas calon anggota
+  startY = drawSummary(
+    doc,
+    [
+      { label: "Nama Calon Anggota", value: nama },
+      { label: "No. WhatsApp / HP", value: hp },
+      { label: "Tanggal Daftar", value: formatTanggal(submission.submittedAt) },
+      { label: "Status Seleksi", value: statusText },
     ],
-    columnWidths: [9, 24, 80, 34, 38, 38, 40],
-    columnAligns: ["center", "center", "left", "left", "right", "right", "right"],
+    startY
+  );
+
+  const rows = submission.answers.map((a, i) => [
+    i + 1,
+    a.field.label,
+    (a.field.fieldType === "file" || a.field.fieldType === "image") && a.fileUrl
+      ? a.fileName ?? "Berkas / Foto Terlampir"
+      : a.field.fieldType === "checkbox"
+      ? a.value.split(",").filter(Boolean).join(", ")
+      : a.value || "-",
+  ]);
+
+  const usableWidth = doc.internal.pageSize.getWidth() - MARGIN * 2;
+  const colStyles = buildColumnStyles(
+    ["center", "left", "left"],
+    [8, 52, 90],
+    usableWidth
+  );
+
+  autoTable(doc, {
+    startY: startY,
+    head: [["No", "Pertanyaan / Dokumen Formulir", "Jawaban Calon Anggota"]],
+    body: rows,
+    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 52 }, // Sisakan ruang untuk kotak keputusan di bawah
+    styles: {
+      font: fontFamily,
+      fontSize: 8,
+      cellPadding: { top: 2.0, right: 2.2, bottom: 2.0, left: 2.2 },
+      textColor: BODY,
+      lineColor: LINE,
+      lineWidth: 0.15,
+      overflow: "linebreak",
+      valign: "middle",
+      minCellHeight: 6,
+    },
+    headStyles: {
+      fillColor: BURGUNDY,
+      textColor: WHITE,
+      fontStyle: semiboldStyle() as "bold" | "italic" | "normal" | "bolditalic",
+      fontSize: 8.2,
+      halign: "center",
+      cellPadding: { top: 2.4, right: 2.2, bottom: 2.4, left: 2.2 },
+    },
+    alternateRowStyles: { fillColor: ROW_ALT },
+    columnStyles: colStyles,
+    rowPageBreak: "avoid",
   });
+
+  const finalY = (doc as any).lastAutoTable?.finalY ?? startY + 40;
+  drawSelectionDecisionBox(doc, finalY);
+}
+
+// ============================================================
+// 6. LAPORAN DAFTAR CALON ANGGOTA BARU (1 Lembar per 1 Calon)
+// ============================================================
+export async function laporanRekrutmen(
+  form: RekrutmenForm,
+  submissions: RekrutmenSubmissionWithAnswers[],
+  periodLabel?: string
+) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: F4 });
+  await ensureFonts(doc);
+
+  if (submissions.length === 0) {
+    let startY = await drawFullHeader(
+      doc,
+      "PENILAIAN CALON ANGGOTA",
+      form.title || "Rekrutmen MB Chondro",
+      periodLabel || formatTanggalPanjang(new Date().toISOString())
+    );
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(10);
+    doc.setTextColor(...SLATE);
+    doc.text("Tidak ada data calon anggota untuk dicetak.", MARGIN, startY + 10);
+  } else {
+    for (let i = 0; i < submissions.length; i++) {
+      if (i > 0) {
+        doc.addPage(F4, "portrait");
+      }
+      await renderCandidateSheet(doc, form, submissions[i], periodLabel);
+    }
+  }
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawPageFooter(doc, i, totalPages);
+  }
+
+  doc.save(
+    `Lembar-penilaian-${(form.title || "calon-anggota").toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`
+  );
+}
+
+// ============================================================
+// 7. LAPORAN BIODATA DETAIL CALON ANGGOTA (1 Lembar per Calon)
+// ============================================================
+export async function laporanRekrutmenDetail(
+  form: RekrutmenForm,
+  submission: RekrutmenSubmissionWithAnswers
+) {
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: F4 });
+  await ensureFonts(doc);
+
+  await renderCandidateSheet(doc, form, submission);
+
+  const totalPages = doc.getNumberOfPages();
+  for (let i = 1; i <= totalPages; i++) {
+    doc.setPage(i);
+    drawPageFooter(doc, i, totalPages);
+  }
+
+  const nama =
+    submission.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value ||
+    "calon-anggota";
+  doc.save(
+    `Lembar-penilaian-${nama.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`
+  );
 }

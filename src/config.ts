@@ -18,6 +18,12 @@ export const SHEETS = {
   ABSENSI: "ABSENSI",
   KEUANGAN_CHONDRO: "KEUANGAN_CHONDRO",
   KEUANGAN_MEDIA: "KEUANGAN_MEDIA",
+  TRANSAKSI_GROUP: "TRANSAKSI_GROUP",
+  TRANSAKSI_DETAIL: "TRANSAKSI_DETAIL",
+  REKRUITMEN_FORM: "REKRUITMEN_FORM",
+  REKRUITMEN_FIELDS: "REKRUITMEN_FIELDS",
+  REKRUITMEN_SUBMISSIONS: "REKRUITMEN_SUBMISSIONS",
+  REKRUITMEN_ANSWERS: "REKRUITMEN_ANSWERS",
 } as const;
 
 // Status anggota yang valid
@@ -31,6 +37,11 @@ export const WAKTU_ABSENSI = ["Pagi", "Siang", "Malam"] as const;
 
 // Jenis transaksi yang valid
 export const JENIS_TRANSAKSI = ["Pemasukan", "Pengeluaran"] as const;
+
+// Rekruitmen
+export const REKRUITMEN_STATUS = ["dibuka", "ditutup"] as const;
+export const REKRUITMEN_SUBMISSION_STATUS = ["menunggu", "lolos", "tidak_lolos"] as const;
+export const REKRUITMEN_FIELD_TYPES = ["text", "textarea", "number", "date", "select", "radio", "checkbox", "file"] as const;
 
 // Opsi divisi (kategori fleksibel, diambil dari data; daftar ini hanya referensi)
 export const DIVISI = ["Musik", "Media", "Perlengkapan", "Kesehatan", "Sekretariat", "Lainnya"] as const;

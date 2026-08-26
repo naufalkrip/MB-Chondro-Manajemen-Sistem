@@ -1,5 +1,7 @@
 import type { JenisTransaksi, StatusAnggota, StatusKehadiran, WaktuAbsensi } from "../config";
 
+export type { JenisTransaksi, StatusAnggota, StatusKehadiran, WaktuAbsensi };
+
 export interface Anggota {
   id: string;
   nama: string;
@@ -62,6 +64,122 @@ export interface RekapAbsensi {
   alpa: number;
   total: number;
   persentase: number;
+}
+
+export interface TransaksiGroup {
+  id: string;
+  judul: string;
+  tanggal: string;
+  keterangan: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransaksiDetail {
+  id: string;
+  transaksiGroupId: string;
+  tanggal: string;
+  jenis: JenisTransaksi;
+  kategori: string;
+  nominal: number;
+  keterangan: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransaksiGroupWithStats extends TransaksiGroup {
+  totalTransaksi: number;
+  totalPemasukan: number;
+  totalPengeluaran: number;
+  saldo: number;
+}
+
+// ============================================================
+// REKRUITMEN TYPES
+// ============================================================
+
+export type RekrutmenFieldType =
+  | "text"
+  | "textarea"
+  | "number"
+  | "date"
+  | "select"
+  | "radio"
+  | "checkbox"
+  | "file"
+  | "image";
+
+export interface RekrutmenFieldOption {
+  value: string;
+  label: string;
+}
+
+export interface RekrutmenField {
+  id: string;
+  formId: string;
+  label: string;
+  description: string;
+  fieldType: RekrutmenFieldType;
+  placeholder?: string;
+  required: boolean;
+  options: RekrutmenFieldOption[];
+  sortOrder: number;
+  exampleImageUrl?: string;
+  exampleImageTitle?: string;
+  maxFileSize?: number; // in MB (e.g. 2 for 2MB, 5 for 5MB)
+  allowedFileTypes?: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RekrutmenForm {
+  id: string;
+  title: string;
+  description: string;
+  status: "dibuka" | "ditutup";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type RekrutmenSubmissionStatus = "menunggu" | "lolos" | "cadangan" | "tidak_lolos";
+
+export interface RekrutmenSubmission {
+  id: string;
+  formId: string;
+  status: RekrutmenSubmissionStatus;
+  adminNote: string;
+  submittedAt: string;
+  reviewedAt: string | null;
+  reviewedBy: string | null;
+}
+
+export interface RekrutmenAnswer {
+  id: string;
+  submissionId: string;
+  fieldId: string;
+  value: string;
+  fileUrl: string | null;
+  fileName: string | null;
+  fileType: string | null;
+  fileSize: number | null;
+  createdAt: string;
+}
+
+export interface RekrutmenFormWithFields extends RekrutmenForm {
+  fields: RekrutmenField[];
+}
+
+export interface RekrutmenSubmissionWithAnswers extends RekrutmenSubmission {
+  answers: (RekrutmenAnswer & { field: RekrutmenField })[];
+  form: RekrutmenForm;
+}
+
+export interface RekrutmenStats {
+  total: number;
+  menunggu: number;
+  lolos: number;
+  cadangan: number;
+  tidakLolos: number;
 }
 
 export interface DashboardData {
