@@ -27,6 +27,7 @@ import { Filter as FilterComp } from "../ui/Filter";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { laporanRekrutmen, laporanRekrutmenDetail } from "../../services/pdf";
+import { getRekrutmenImageBase64Item } from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 
 interface SubmissionListProps {
@@ -118,12 +119,14 @@ export function SubmissionList({
   const [savingStatus, setSavingStatus] = useState(false);
 
   // Lightbox Image
-  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string } | null>(null);
+  const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string; fileName?: string } | null>(null);
   const [lightboxImgError, setLightboxImgError] = useState(false);
+  const [lightboxFetching, setLightboxFetching] = useState(false);
 
-  const openPhotoLightbox = (url: string, title: string) => {
-    setLightboxImage({ url, title });
+  const openPhotoLightbox = (url: string, title: string, fileName?: string) => {
+    setLightboxImage({ url, title, fileName });
     setLightboxImgError(false);
+    setLightboxFetching(false);
   };
 
   // PDF Export Modal State
@@ -307,7 +310,8 @@ export function SubmissionList({
     if (isImage) {
       openPhotoLightbox(
         fileUrl,
-        ans.field?.label || ans.fileName || "Foto Calon Anggota"
+        ans.field?.label || ans.fileName || "Foto Calon Anggota",
+        ans.fileName || ans.value
       );
     } else {
       try {
@@ -379,7 +383,7 @@ export function SubmissionList({
                 }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  openPhotoLightbox(fotoUrl, namaField?.value || "Foto Calon Anggota");
+                  openPhotoLightbox(fotoUrl, namaField?.value || "Foto Calon Anggota", fotoField?.fileName || fotoField?.value);
                 }}
                 style={{
                   width: 34,
@@ -775,12 +779,13 @@ export function SubmissionList({
                           {isImg ? (
                             <div
                               style={{ position: "relative", cursor: "pointer" }}
-                              onClick={() =>
-                                openPhotoLightbox(
-                                  fileUrl,
-                                  ans.field?.label || ans.fileName || "Foto Calon Anggota"
-                                )
-                              }
+                                onClick={() =>
+                                  openPhotoLightbox(
+                                    fileUrl,
+                                    ans.field?.label || ans.fileName || "Foto Calon Anggota",
+                                    ans.fileName || ans.value
+                                  )
+                                }
                             >
                               <img
                                 src={fileUrl}
@@ -1238,36 +1243,68 @@ export function SubmissionList({
                   </button>
                 </div>
               </div>
-              <div style={{ padding: 24, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 240 }}>
-                {lightboxImgError ? (
+              <div style={{ padding: 24, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 280 }}>
+                {lightboxFetching ? (
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#f8fafc" }}>
+                    <div style={{ width: 36, height: 36, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#38bdf8", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+                    <span style={{ fontSize: "13px", color: "#94a3b8" }}>Memulihkan dan memuat foto...</span>
+                  </div>
+                ) : lightboxImgError ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#f8fafc", padding: "10px" }}>
                     <span style={{ fontSize: "36px" }}>📸</span>
-                    <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>Foto Tersimpan Pada Versi Sebelumnya</strong>
+                    <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>Foto Pada Versi Sebelum Pembaruan</strong>
                     <p style={{ fontSize: "12.5px", color: "#94a3b8", maxWidth: 380, margin: 0, lineHeight: 1.5 }}>
-                      Foto ini terpotong pada pengiriman sebelumnya sebelum sistem resolusi aman aktif. Pendaftaran baru yang dikirim saat ini akan menampilkan foto dengan 100% jernih dan utuh.
+                      File foto ini tidak tersimpan di Google Drive atau data telah kedaluwarsa. Calon anggota yang mendaftar sekarang fotonya langsung tersimpan permanen dan utuh.
                     </p>
-                    {lightboxImage.url.startsWith("http") && (
-                      <a
-                        href={lightboxImage.url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="btn btn-primary btn-sm"
-                        style={{ marginTop: 6 }}
-                      >
-                        Buka Tautan Asli ↗
-                      </a>
-                    )}
+                    <button
+                      type="button"
+                      className="btn btn-primary btn-sm"
+                      style={{ marginTop: 6 }}
+                      onClick={async () => {
+                        setLightboxFetching(true);
+                        setLightboxImgError(false);
+                        const match = lightboxImage.url.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+                        const res = await getRekrutmenImageBase64Item({
+                          fileId: match ? match[1] : undefined,
+                          fileName: lightboxImage.fileName || lightboxImage.title,
+                        });
+                        setLightboxFetching(false);
+                        if (res.success && res.base64) {
+                          setLightboxImage((prev) => prev ? { ...prev, url: res.base64! } : null);
+                        } else {
+                          setLightboxImgError(true);
+                        }
+                      }}
+                    >
+                      🔄 Coba Muat Ulang Foto
+                    </button>
                   </div>
                 ) : (
                   <img
                     src={lightboxImage.url}
                     alt={lightboxImage.title}
                     referrerPolicy={lightboxImage.url.startsWith("http") ? "no-referrer" : undefined}
-                    onError={(e) => {
+                    onError={async (e) => {
                       const currentSrc = e.currentTarget.src;
-                      const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                      if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                        e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                      const match = currentSrc.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+                      const fileId = match ? match[1] : undefined;
+
+                      if (currentSrc.startsWith("http") && !currentSrc.includes("thumbnail?id=") && fileId) {
+                        e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
+                        return;
+                      }
+
+                      // Auto-fetch dari backend proxy Google Drive
+                      setLightboxFetching(true);
+                      const res = await getRekrutmenImageBase64Item({
+                        fileId,
+                        fileName: lightboxImage.fileName || lightboxImage.title,
+                      });
+                      setLightboxFetching(false);
+
+                      if (res.success && res.base64) {
+                        setLightboxImage((prev) => prev ? { ...prev, url: res.base64! } : null);
+                        setLightboxImgError(false);
                       } else {
                         setLightboxImgError(true);
                       }

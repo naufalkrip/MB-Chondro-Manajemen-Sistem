@@ -260,6 +260,8 @@ function executeAction(action, data) {
       return reorderRekrutmenFields(data.formId, data.fieldOrders);
     case "uploadRekrutmenImage":
       return uploadRekrutmenImage(data);
+    case "getRekrutmenImageBase64":
+      return getRekrutmenImageBase64(data);
 
     // Rekrutmen Submissions
     case "getRekrutmenSubmissions":
@@ -1573,6 +1575,111 @@ function uploadRekrutmenImage(data) {
 
 // ---------------- REKRUITMEN SUBMISSIONS & ANSWERS ----------------
 
+/**
+ * Otomatis mengonversi URL Google Drive / berkas foto lama menjadi Base64 Data URL
+ * agar selalu tampil 100% jernih dan tidak terblokir izin Google Drive di browser.
+ */
+function resolveCandidateAnswerPhoto(ans) {
+  if (!ans) return ans;
+  var fileUrl = String(ans.fileUrl || "");
+  var fileName = String(ans.fileName || ans.value || "");
+  var isImgAnswer = (ans.field && ans.field.fieldType === "image") ||
+                    (ans.field && String(ans.field.label || "").toLowerCase().indexOf("foto") >= 0) ||
+                    fileName.match(/\.(jpe?g|png|webp|gif)$/i) ||
+                    fileUrl.indexOf("data:image/") === 0 ||
+                    fileUrl.indexOf("drive.google.com") >= 0 ||
+                    fileUrl.indexOf("lh3.googleusercontent") >= 0;
+
+  if (!isImgAnswer) return ans;
+
+  // Jika sudah berupa Data URL yang valid dan utuh (bukan string potong < 1000 karakter)
+  if (fileUrl.indexOf("data:image/") === 0 && fileUrl.length > 2000) {
+    return ans;
+  }
+
+  // 1. Coba ambil dari fileId jika URL berupa link Google Drive
+  var fileId = "";
+  var match = fileUrl.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+  if (match) fileId = match[1];
+
+  if (fileId) {
+    try {
+      var file = DriveApp.getFileById(fileId);
+      if (file) {
+        var blob = file.getBlob();
+        var bytes = blob.getBytes();
+        if (bytes.length <= 3500000) {
+          ans.fileUrl = "data:" + (blob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes);
+          return ans;
+        }
+      }
+    } catch (e) {}
+  }
+
+  // 2. Coba cari di folder 'MB Chondro Berkas Pendaftar' berdasarkan fileName
+  if (fileName && fileName.match(/\.(jpe?g|png|webp|gif)$/i)) {
+    try {
+      var folders = DriveApp.getFoldersByName("MB Chondro Berkas Pendaftar");
+      if (folders.hasNext()) {
+        var folder = folders.next();
+        var files = folder.getFilesByName(fileName);
+        if (files.hasNext()) {
+          var targetFile = files.next();
+          var blob2 = targetFile.getBlob();
+          var bytes2 = blob2.getBytes();
+          if (bytes2.length <= 3500000) {
+            ans.fileUrl = "data:" + (blob2.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes2);
+            return ans;
+          }
+        }
+      }
+    } catch (e2) {}
+  }
+
+  return ans;
+}
+
+function getRekrutmenImageBase64(data) {
+  if (!data) throw new Error("Data permintaan gambar tidak lengkap.");
+  var fileId = data.fileId || "";
+  var fileName = data.fileName || "";
+
+  if (fileId) {
+    try {
+      var file = DriveApp.getFileById(fileId);
+      if (file) {
+        var blob = file.getBlob();
+        return {
+          success: true,
+          base64: "data:" + (blob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(blob.getBytes()),
+          name: file.getName()
+        };
+      }
+    } catch (e) {}
+  }
+
+  if (fileName) {
+    try {
+      var folders = DriveApp.getFoldersByName("MB Chondro Berkas Pendaftar");
+      if (folders.hasNext()) {
+        var folder = folders.next();
+        var files = folder.getFilesByName(fileName);
+        if (files.hasNext()) {
+          var targetFile = files.next();
+          var blob2 = targetFile.getBlob();
+          return {
+            success: true,
+            base64: "data:" + (blob2.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(blob2.getBytes()),
+            name: targetFile.getName()
+          };
+        }
+      }
+    } catch (e2) {}
+  }
+
+  return { success: false, message: "File gambar tidak ditemukan." };
+}
+
 function getRekrutmenSubmissions(formId) {
   var subCfg = getSheetConfig("REKRUITMEN_SUBMISSIONS");
   var allSubs = readRows(subCfg);
@@ -1599,6 +1706,7 @@ function getRekrutmenSubmissions(formId) {
     if (!answersBySubId[sid]) answersBySubId[sid] = [];
     var fieldObj = fieldMap[String(ans.fieldId)] || { id: ans.fieldId, label: "", fieldType: "text" };
     ans.field = fieldObj;
+    ans = resolveCandidateAnswerPhoto(ans);
     answersBySubId[sid].push(ans);
   }
 
@@ -1635,6 +1743,7 @@ function getRekrutmenSubmissionDetail(submissionId) {
 
   for (var j = 0; j < answers.length; j++) {
     answers[j].field = fieldMap[String(answers[j].fieldId)] || { id: answers[j].fieldId, label: "", fieldType: "text" };
+    answers[j] = resolveCandidateAnswerPhoto(answers[j]);
   }
   sub.answers = answers;
   return sub;
@@ -1656,6 +1765,7 @@ function getRekrutmenAnswers(submissionId) {
   });
   for (var i = 0; i < filtered.length; i++) {
     filtered[i].field = fieldMap[String(filtered[i].fieldId)] || { id: filtered[i].fieldId, label: "", fieldType: "text" };
+    filtered[i] = resolveCandidateAnswerPhoto(filtered[i]);
   }
   return filtered;
 }

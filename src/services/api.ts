@@ -935,6 +935,15 @@ export const deleteRekrutmenSubmissionItem = deleteRekrutmenSubmission;
 export const getRekrutmenSubmissionDetailData = getRekrutmenSubmissionDetail;
 export const getRekrutmenStatsData = getRekrutmenStats;
 
+export async function getRekrutmenImageBase64Item(payload: { fileId?: string; fileName?: string }): Promise<{ success: boolean; base64?: string; message?: string }> {
+  try {
+    const res = await request<{ success: boolean; base64?: string; message?: string }>("getRekrutmenImageBase64", payload as Record<string, unknown>);
+    return res;
+  } catch {
+    return { success: false, message: "Gagal mengambil data gambar." };
+  }
+}
+
 export function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
