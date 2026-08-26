@@ -1709,28 +1709,50 @@ function addRekrutmenSubmission(data) {
       var ansId = generateId(ansCfg);
       var fileUrl = String(item.fileUrl || item.fileBase64 || "");
 
-      // Jika file berupa Base64 (upload foto/dokumen calon anggota), simpan otomatis ke Google Drive
+      // Jika file berupa Base64 (upload foto/dokumen calon anggota)
       if (fileUrl.indexOf("data:") === 0) {
-        try {
-          if (!driveFolder) {
-            var fName = "MB Chondro Berkas Pendaftar";
-            var fList = DriveApp.getFoldersByName(fName);
-            driveFolder = fList.hasNext() ? fList.next() : DriveApp.createFolder(fName);
+        var isImage = fileUrl.indexOf("data:image/") === 0;
+        var isSmallSafe = fileUrl.length <= 48000;
+
+        // Jika dokumen besar atau PDF, wajib simpan ke Google Drive
+        if (!isImage || !isSmallSafe) {
+          try {
+            if (!driveFolder) {
+              var fName = "MB Chondro Berkas Pendaftar";
+              var fList = DriveApp.getFoldersByName(fName);
+              driveFolder = fList.hasNext() ? fList.next() : DriveApp.createFolder(fName);
+            }
+            var parts = fileUrl.split(",");
+            var mime = "application/octet-stream";
+            var mMatch = parts[0].match(/:(.*?);/);
+            if (mMatch) mime = mMatch[1];
+            var fBytes = Utilities.base64Decode(parts[1]);
+            var fBlob = Utilities.newBlob(fBytes, mime, String(item.fileName || ("berkas_" + ansId + ".jpg")));
+            var dFile = driveFolder.createFile(fBlob);
+            dFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+            fileUrl = "https://drive.google.com/thumbnail?id=" + dFile.getId() + "&sz=w1600";
+          } catch (e) {
+            if (fileUrl.length > 48000) fileUrl = "";
           }
-          var parts = fileUrl.split(",");
-          var mime = "image/jpeg";
-          var mMatch = parts[0].match(/:(.*?);/);
-          if (mMatch) mime = mMatch[1];
-          var fBytes = Utilities.base64Decode(parts[1]);
-          var fBlob = Utilities.newBlob(fBytes, mime, String(item.fileName || ("berkas_" + ansId + ".jpg")));
-          var dFile = driveFolder.createFile(fBlob);
-          dFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-          fileUrl = "https://drive.google.com/thumbnail?id=" + dFile.getId() + "&sz=w1600";
-        } catch (e) {
-          if (fileUrl.length > 48000) fileUrl = fileUrl.substring(0, 48000);
+        } else {
+          // Untuk foto gambar berukuran aman (<= 48k karakter), simpan langsung sebagai Data URL mandiri
+          // Ini menjamin 100% foto selalu tampil seketika & tidak pernah terblokir oleh izin Google Drive
+          try {
+            if (!driveFolder) {
+              var fName2 = "MB Chondro Berkas Pendaftar";
+              var fList2 = DriveApp.getFoldersByName(fName2);
+              driveFolder = fList2.hasNext() ? fList2.next() : DriveApp.createFolder(fName2);
+            }
+            var parts2 = fileUrl.split(",");
+            var mime2 = "image/jpeg";
+            var mMatch2 = parts2[0].match(/:(.*?);/);
+            if (mMatch2) mime2 = mMatch2[1];
+            var fBytes2 = Utilities.base64Decode(parts2[1]);
+            var fBlob2 = Utilities.newBlob(fBytes2, mime2, String(item.fileName || ("foto_" + ansId + ".jpg")));
+            var dFile2 = driveFolder.createFile(fBlob2);
+            dFile2.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          } catch (e2) {}
         }
-      } else if (fileUrl.length > 48000) {
-        fileUrl = fileUrl.substring(0, 48000);
       }
 
       var ansRow = [
