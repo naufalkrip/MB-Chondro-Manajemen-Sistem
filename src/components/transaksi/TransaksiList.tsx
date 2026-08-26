@@ -114,7 +114,7 @@ export function TransaksiList({
     setSaving(false);
     if (res.success) {
       setModalMode(null);
-      await onRefresh();
+      void onRefresh();
       if (openDetailAfterCreate && res.id) {
         onNavigateToDetail(res.id);
       }
@@ -128,7 +128,7 @@ export function TransaksiList({
     setDeleting(false);
     if (ok) {
       setToDelete(null);
-      await onRefresh();
+      void onRefresh();
     }
   };
 

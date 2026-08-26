@@ -233,7 +233,7 @@ export function TransaksiDetail() {
       if (result.success) {
         toastSuccess(editing ? "Rincian transaksi berhasil diperbarui." : "Transaksi berhasil ditambahkan.");
         setModalMode(null);
-        await reloadDetailsOnly();
+        void reloadDetailsOnly();
       } else {
         toastError(result.message);
       }
@@ -251,7 +251,7 @@ export function TransaksiDetail() {
     if (result.success) {
       toastSuccess("Rincian transaksi berhasil dihapus.");
       setToDelete(null);
-      await reloadDetailsOnly();
+      void reloadDetailsOnly();
     } else {
       toastError(result.message);
     }

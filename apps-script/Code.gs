@@ -460,13 +460,37 @@ function generateId(cfg) {
 }
 
 function findRowIndex(cfg, id) {
+  if (!id) return -1;
   var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
-  if (lastRow < 1) return -1;
-  var ids = sheet.getRange(1, cfg.idCol + 1, lastRow, 1).getValues();
-  for (var i = 0; i < ids.length; i++) {
-    if (String(ids[i][0]) === String(id)) return i + 1; // 1-based baris sheet
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return -1;
+
+  var targetId = String(id).trim().toLowerCase();
+  var headerMap = getHeaderIndexMap(sheet);
+  var idColIdx = cfg.idCol;
+  var idKey = String(cfg.keys[cfg.idCol] || "").toLowerCase();
+  var idHeader = String(cfg.headers[cfg.idCol] || "").toLowerCase();
+  if (headerMap[idKey] !== undefined) idColIdx = headerMap[idKey];
+  else if (headerMap[idHeader] !== undefined) idColIdx = headerMap[idHeader];
+
+  // 1. Cek pada kolom ID utama
+  var ids = sheet.getRange(1, idColIdx + 1, lastRow, 1).getValues();
+  for (var i = 1; i < ids.length; i++) {
+    var val = String(ids[i][0] || "").trim().toLowerCase();
+    if (val === targetId) return i + 1; // 1-based baris sheet
   }
+
+  // 2. Fallback: scan seluruh baris jika ID berpindah kolom
+  var allData = sheet.getRange(2, 1, lastRow - 1, Math.min(lastCol, 10)).getValues();
+  for (var r = 0; r < allData.length; r++) {
+    for (var c = 0; c < allData[r].length; c++) {
+      if (String(allData[r][c] || "").trim().toLowerCase() === targetId) {
+        return r + 2;
+      }
+    }
+  }
+
   return -1;
 }
 
@@ -880,30 +904,37 @@ function deleteAbsensiBatch(ids) {
   var ss = getSpreadsheet();
   var sheet = ss.getSheetByName(cfg.name);
   var lastRow = sheet.getLastRow();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return { message: "Sheet kosong.", jumlah: 0 };
 
-  var set = {};
-  for (var i = 0; i < ids.length; i++) set[String(ids[i])] = true;
+  var targetSet = {};
+  for (var k = 0; k < ids.length; k++) {
+    var rawId = String(ids[k] || "").trim().toLowerCase();
+    if (rawId) targetSet[rawId] = true;
+  }
 
-  var indices = [];
-  if (lastRow >= 1) {
-    var idData = sheet.getRange(1, cfg.idCol + 1, lastRow, 1).getValues();
-    for (var r = 1; r < idData.length; r++) {
-      if (set[String(idData[r][0])]) indices.push(r + 1);
+  var headerMap = getHeaderIndexMap(sheet);
+  var idColIdx = headerMap["id"] !== undefined ? headerMap["id"] : (headerMap["id absensi"] !== undefined ? headerMap["id absensi"] : 0);
+
+  var allRows = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  var keepRows = [];
+  var deletedCount = 0;
+
+  for (var r = 0; r < allRows.length; r++) {
+    var rowId = String(allRows[r][idColIdx] || "").trim().toLowerCase();
+    if (targetSet[rowId]) {
+      deletedCount++;
+    } else {
+      keepRows.push(allRows[r]);
     }
   }
-  if (indices.length === 0) throw new Error("Absensi tidak ditemukan.");
 
-  // Hapus dari bawah agar indeks tidak bergeser; gabungkan baris berurutan.
-  indices.sort(function (a, b) { return b - a; });
-  var i = 0;
-  while (i < indices.length) {
-    var start = indices[i];
-    var run = 1;
-    while (i + run < indices.length && indices[i + run] === start - run) run++;
-    sheet.deleteRows(start - run + 1, run);
-    i += run;
+  sheet.getRange(2, 1, lastRow - 1, lastCol).clearContent();
+  if (keepRows.length > 0) {
+    sheet.getRange(2, 1, keepRows.length, lastCol).setValues(keepRows);
   }
-  return { message: "Data berhasil dihapus.", jumlah: indices.length };
+
+  return { message: "Data berhasil dihapus.", jumlah: deletedCount };
 }
 
 // ============================================================

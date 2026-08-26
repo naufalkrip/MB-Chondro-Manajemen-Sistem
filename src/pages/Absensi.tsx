@@ -13,7 +13,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { deleteAbsensiBatch, getAbsensi, getAnggota, saveAbsensiBatch, updateAbsensiBatch } from "../services/api";
-import { CACHE_KEYS } from "../services/cache";
+import { CACHE_KEYS, cacheMutate } from "../services/cache";
 import { laporanAbsensiRekap } from "../services/pdf";
 import type { Absensi, Anggota, SesiAbsensi } from "../types";
 import { STATUS_KEHADIRAN, WAKTU_ABSENSI } from "../config";
@@ -111,7 +111,7 @@ export function Absensi() {
   const [formWaktu, setFormWaktu] = useState<WaktuAbsensi | "">("");
   const [formStatus, setFormStatus] = useState<Record<string, StatusKehadiran>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const saving = false;
 
   // Search & filter daftar anggota
   const [memberSearch, setMemberSearch] = useState("");
@@ -133,9 +133,9 @@ export function Absensi() {
   const [editSesi, setEditSesi] = useState<SesiAbsensi | null>(null);
   const [editForm, setEditForm] = useState({ tanggal: "", kegiatan: "", waktu: "" as WaktuAbsensi | "" });
   const [editStatus, setEditStatus] = useState<Record<string, StatusKehadiran>>({});
-  const [editSaving, setEditSaving] = useState(false);
+  const editSaving = false;
   const [toDelete, setToDelete] = useState<SesiAbsensi | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const deleting = false;
 
   // Modal pilih rentang PDF
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -290,7 +290,6 @@ export function Absensi() {
     setFormErrors(err);
     if (Object.keys(err).length > 0) return;
 
-    setSaving(true);
     const sessionKey = `${formTanggal}|${formKegiatan.trim().toLowerCase()}|${formWaktu as string}`;
     const existingByMember = new Map<string, Absensi>();
     for (const a of absensi) {
@@ -301,9 +300,12 @@ export function Absensi() {
 
     const toAdd: Omit<Absensi, "id" | "nama">[] = [];
     const toUpdate: Omit<Absensi, "nama">[] = [];
+    const optimisticAbsensiList: Absensi[] = [];
+
     for (const a of anggota) {
       const payload = {
         idAnggota: a.id,
+        nama: a.nama,
         tanggal: formTanggal,
         kegiatan: formKegiatan.trim(),
         waktu: formWaktu as WaktuAbsensi,
@@ -311,30 +313,40 @@ export function Absensi() {
         keterangan: "",
       };
       const existing = existingByMember.get(a.id);
-      if (existing) toUpdate.push({ ...payload, id: existing.id });
-      else toAdd.push(payload);
+      if (existing) {
+        toUpdate.push({ ...payload, id: existing.id });
+        optimisticAbsensiList.push({ ...payload, id: existing.id });
+      } else {
+        const tempId = `ABS${Date.now().toString().slice(-4)}_${a.id}`;
+        toAdd.push({ ...payload });
+        optimisticAbsensiList.push({ ...payload, id: tempId });
+      }
     }
 
-    let failed = "";
-    if (toAdd.length > 0) {
-      const res = await saveAbsensiBatch(toAdd);
-      if (!res.success) failed = res.message;
-    }
-    if (!failed && toUpdate.length > 0) {
-      const res = await updateAbsensiBatch(toUpdate);
-      if (!res.success) failed = res.message;
-    }
-    setSaving(false);
+    // 1. INSTAN 0-ms: Update UI & Cache seketika
+    cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => {
+      const existing = (prev ?? []).filter((item) => !optimisticAbsensiList.some((n) => n.id === item.id || (n.idAnggota === item.idAnggota && n.tanggal === item.tanggal && n.kegiatan.toLowerCase() === item.kegiatan.toLowerCase() && n.waktu === item.waktu)));
+      return [...optimisticAbsensiList, ...existing];
+    });
 
-    if (failed) {
-      toastError(failed);
-    } else {
-      toastSuccess(
-        toAdd.length === 0 && toUpdate.length > 0
-          ? "Absensi berhasil diperbarui."
-          : "Absensi berhasil disimpan."
-      );
-      setFormStatus({});
+    setFormStatus({});
+    toastSuccess(
+      toAdd.length === 0 && toUpdate.length > 0
+        ? "Absensi berhasil diperbarui."
+        : "Absensi berhasil disimpan."
+    );
+
+    // 2. Background Sync ke server
+    try {
+      if (toAdd.length > 0) {
+        await saveAbsensiBatch(toAdd);
+      }
+      if (toUpdate.length > 0) {
+        await updateAbsensiBatch(toUpdate);
+      }
+      void refresh(true);
+    } catch {
+      toastError("Gagal menghubungi server.");
       void refresh(true);
     }
   };
@@ -369,13 +381,15 @@ export function Absensi() {
       return;
     }
 
-    setEditSaving(true);
     const oldByMember = new Map(editSesi.daftar.map((r) => [r.idAnggota, r] as const));
     const toUpdate: Omit<Absensi, "nama">[] = [];
     const toAdd: Omit<Absensi, "id" | "nama">[] = [];
+    const optimisticUpdated: Absensi[] = [];
+
     for (const a of anggota) {
       const payload = {
         idAnggota: a.id,
+        nama: a.nama,
         tanggal: editForm.tanggal,
         kegiatan: editForm.kegiatan.trim(),
         waktu: editForm.waktu as WaktuAbsensi,
@@ -383,40 +397,65 @@ export function Absensi() {
         keterangan: "",
       };
       const old = oldByMember.get(a.id);
-      if (old) toUpdate.push({ ...payload, id: old.id });
-      else toAdd.push(payload);
+      if (old) {
+        toUpdate.push({ ...payload, id: old.id });
+        optimisticUpdated.push({ ...payload, id: old.id });
+      } else {
+        const tempId = `ABS${Date.now().toString().slice(-4)}_${a.id}`;
+        toAdd.push(payload);
+        optimisticUpdated.push({ ...payload, id: tempId });
+      }
     }
-    let failed = "";
-    if (toUpdate.length > 0) {
-      const res = await updateAbsensiBatch(toUpdate);
-      if (!res.success) failed = res.message;
-    }
-    if (!failed && toAdd.length > 0) {
-      const res = await saveAbsensiBatch(toAdd);
-      if (!res.success) failed = res.message;
-    }
-    setEditSaving(false);
 
-    if (failed) {
-      toastError(failed);
-    } else {
-      toastSuccess("Riwayat absensi berhasil diperbarui.");
-      setEditSesi(null);
+    // 1. INSTAN 0-ms: Update UI & Cache seketika + tutup modal
+    cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => {
+      const filtered = (prev ?? []).filter((item) => !excludeIds.has(item.id));
+      return [...optimisticUpdated, ...filtered];
+    });
+
+    setEditSesi(null);
+    toastSuccess("Riwayat absensi berhasil diperbarui.");
+
+    // 2. Background Sync ke server
+    try {
+      if (toUpdate.length > 0) {
+        await updateAbsensiBatch(toUpdate);
+      }
+      if (toAdd.length > 0) {
+        await saveAbsensiBatch(toAdd);
+      }
+      void refresh(true);
+    } catch {
+      toastError("Gagal menghubungi server.");
       void refresh(true);
     }
   };
 
   const handleDeleteSesi = async () => {
     if (!toDelete) return;
-    setDeleting(true);
-    const res = await deleteAbsensiBatch(toDelete.daftar.map((r) => r.id));
-    setDeleting(false);
-    if (!res.success) {
-      toastError(res.message);
-    } else {
-      toastSuccess("Riwayat absensi berhasil dihapus.");
-      setToDelete(null);
-      void refresh(true);
+    const sessionItemIds = new Set(toDelete.daftar.map((r) => r.id));
+    const idsToDelete = toDelete.daftar.map((r) => r.id);
+    const backupList = toDelete.daftar;
+
+    // 1. INSTAN 0-ms: Hapus dari UI & Cache seketika + tutup dialog
+    cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) =>
+      (prev ?? []).filter((a) => !sessionItemIds.has(a.id))
+    );
+    setToDelete(null);
+    toastSuccess("Riwayat absensi berhasil dihapus.");
+
+    // 2. Background Sync ke server
+    try {
+      const res = await deleteAbsensiBatch(idsToDelete);
+      if (!res.success) {
+        toastError(res.message || "Gagal menghapus di server.");
+        cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [...(prev ?? []), ...backupList]);
+      } else {
+        void refresh(true);
+      }
+    } catch {
+      toastError("Gagal menghubungi server.");
+      cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [...(prev ?? []), ...backupList]);
     }
   };
 

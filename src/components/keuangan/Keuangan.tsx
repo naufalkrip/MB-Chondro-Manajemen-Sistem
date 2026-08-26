@@ -169,7 +169,7 @@ export function Keuangan({ title, subtitle, loading, transaksi, onRefresh, onSav
     setSaving(false);
     if (ok) {
       setModalMode(null);
-      await onRefresh();
+      void onRefresh();
     }
   };
 
@@ -180,7 +180,7 @@ export function Keuangan({ title, subtitle, loading, transaksi, onRefresh, onSav
     setDeleting(false);
     if (ok) {
       setToDelete(null);
-      await onRefresh();
+      void onRefresh();
     }
   };
 

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import { addAnggota, deleteAnggota, getAnggota, updateAnggota } from "../services/api";
-import { CACHE_KEYS } from "../services/cache";
+import { CACHE_KEYS, cacheMutate } from "../services/cache";
 import { laporanAnggota } from "../services/pdf";
 import type { Anggota } from "../types";
 import { STATUS_ANGGOTA } from "../config";
@@ -52,14 +52,14 @@ export function Anggota() {
   const [form, setForm] = useState<FormAnggota>(FORM_EMPTY);
   const [editing, setEditing] = useState<Anggota | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
+  const saving = false;
   const [extraDivisi, setExtraDivisi] = useState<string[]>([]);
   const [newDivisi, setNewDivisi] = useState("");
   const [showDivisiInput, setShowDivisiInput] = useState(false);
 
   const [detail, setDetail] = useState<Anggota | null>(null);
   const [toDelete, setToDelete] = useState<Anggota | null>(null);
-  const [deleting, setDeleting] = useState(false);
+  const deleting = false;
 
   const anggota = data ?? [];
 
@@ -149,7 +149,6 @@ export function Anggota() {
     setErrors(err);
     if (Object.keys(err).length > 0) return;
 
-    setSaving(true);
     const payload = {
       nama: form.nama.trim(),
       divisi: form.divisi.trim(),
@@ -160,31 +159,67 @@ export function Anggota() {
       keterangan: form.keterangan.trim(),
     };
 
-    const result = editing
-      ? await updateAnggota(editing.id, payload)
-      : await addAnggota(payload);
+    const isEdit = Boolean(editing);
+    const targetId = editing ? editing.id : `MB${Date.now().toString().slice(-4)}`;
+    const optimisticItem: Anggota = {
+      ...payload,
+      id: targetId,
+    };
 
-    setSaving(false);
-    if (result.success) {
-      toastSuccess("Data berhasil disimpan.");
-      setModalMode(null);
+    // 1. INSTAN 0-ms: Update UI & Cache seketika + tutup modal
+    cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) => {
+      const list = prev ?? [];
+      if (isEdit) {
+        return list.map((a) => (a.id === editing!.id ? optimisticItem : a));
+      }
+      return [optimisticItem, ...list];
+    });
+
+    setModalMode(null);
+    toastSuccess(isEdit ? "Perubahan anggota berhasil disimpan." : "Anggota baru berhasil ditambahkan.");
+
+    // 2. Background Sync ke server
+    try {
+      const result = isEdit
+        ? await updateAnggota(editing!.id, payload)
+        : await addAnggota(payload);
+
+      if (!result.success) {
+        toastError(result.message || "Gagal menyimpan ke server.");
+        void refresh(true);
+      } else {
+        void refresh(true);
+      }
+    } catch {
+      toastError("Gagal menghubungi server.");
       void refresh(true);
-    } else {
-      toastError(result.message);
     }
   };
 
   const handleDelete = async () => {
     if (!toDelete) return;
-    setDeleting(true);
-    const result = await deleteAnggota(toDelete.id);
-    setDeleting(false);
-    if (result.success) {
-      toastSuccess("Data berhasil dihapus.");
-      setToDelete(null);
-      void refresh(true);
-    } else {
-      toastError(result.message);
+    const deletedId = toDelete.id;
+    const deletedItem = toDelete;
+
+    // 1. INSTAN 0-ms: Hapus dari UI & Cache seketika + tutup dialog
+    cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) =>
+      (prev ?? []).filter((a) => a.id !== deletedId)
+    );
+    setToDelete(null);
+    toastSuccess("Data anggota berhasil dihapus.");
+
+    // 2. Background Sync ke server
+    try {
+      const result = await deleteAnggota(deletedId);
+      if (!result.success) {
+        toastError(result.message || "Gagal menghapus data di server.");
+        cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) => [deletedItem, ...(prev ?? [])]);
+      } else {
+        void refresh(true);
+      }
+    } catch {
+      toastError("Gagal menghubungi server.");
+      cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) => [deletedItem, ...(prev ?? [])]);
     }
   };
 
