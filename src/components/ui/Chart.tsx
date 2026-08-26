@@ -403,8 +403,8 @@ interface DonutChartProps {
 
 export function DonutChart({
   data,
-  size = 200,
-  thickness = 18,
+  size = 210,
+  thickness = 24,
   centerTitle,
   centerSubtitle = "Total",
   showLegend = true,
@@ -427,8 +427,8 @@ export function DonutChart({
   const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
 
-  // Calculate SVG stroke segments with gap
-  const gap = total > 0 && data.filter((d) => d.value > 0).length > 1 ? 1.5 : 0;
+  // Calculate SVG stroke segments with crisp gap
+  const gap = total > 0 && data.filter((d) => d.value > 0).length > 1 ? 2.5 : 0;
   let accumulatedOffset = 0;
 
   const segments = useMemo(() => {
@@ -464,9 +464,9 @@ export function DonutChart({
 
   const layoutStyle: React.CSSProperties =
     legendPosition === "right"
-      ? { display: "flex", alignItems: "center", justifyContent: "center", gap: 28, flexWrap: "wrap" }
+      ? { display: "flex", alignItems: "center", justifyContent: "center", gap: 24, flexWrap: "wrap", width: "100%" }
       : legendPosition === "bottom"
-      ? { display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }
+      ? { display: "flex", flexDirection: "column", alignItems: "center", gap: 18, width: "100%" }
       : { display: "inline-flex", alignItems: "center", justifyContent: "center" };
 
   return (
@@ -496,7 +496,7 @@ export function DonutChart({
             r={r}
             fill="none"
             stroke="#f1f5f9"
-            strokeWidth={thickness - 2}
+            strokeWidth={thickness}
           />
 
           {/* Value arcs */}
@@ -520,41 +520,47 @@ export function DonutChart({
                 style={{
                   transform: "rotate(-90deg)",
                   transformOrigin: `${size / 2}px ${size / 2}px`,
-                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
                   cursor: "pointer",
                   filter: isHovered
-                    ? `drop-shadow(0 4px 10px ${seg.color}55)`
+                    ? `drop-shadow(0 4px 12px ${seg.color}66)`
                     : "none",
-                  opacity: activeIndex === null || isHovered ? 1 : 0.65,
+                  opacity: activeIndex === null || isHovered ? 1 : 0.45,
                 }}
               />
             );
           })}
         </svg>
 
-        {/* Dynamic Center Label */}
+        {/* Floating Center Badge Island */}
         <div
           style={{
             position: "absolute",
-            inset: 0,
+            width: Math.max(80, size - thickness * 2 - 14),
+            height: Math.max(80, size - thickness * 2 - 14),
+            borderRadius: "50%",
+            background: "#ffffff",
+            boxShadow: "0 4px 16px rgba(0, 0, 0, 0.07), 0 1px 3px rgba(0, 0, 0, 0.04)",
+            border: "1px solid rgba(0, 0, 0, 0.06)",
             display: "flex",
             flexDirection: "column",
             alignItems: "center",
             justifyContent: "center",
             pointerEvents: "none",
             textAlign: "center",
-            padding: "0 12px",
-            transition: "all 0.25s ease",
+            padding: "8px",
+            transition: "all 0.25s cubic-bezier(0.4, 0, 0.2, 1)",
+            zIndex: 2,
           }}
         >
           {activeItem ? (
             <>
               <span
                 style={{
-                  fontSize: Math.max(12, size * 0.16),
-                  fontWeight: 700,
+                  fontSize: Math.max(16, size * 0.16),
+                  fontWeight: 800,
                   color: activeItem.color,
-                  lineHeight: 1.1,
+                  lineHeight: 1,
                   fontVariantNumeric: "tabular-nums",
                 }}
               >
@@ -562,11 +568,11 @@ export function DonutChart({
               </span>
               <span
                 style={{
-                  fontSize: Math.max(10, size * 0.065),
-                  fontWeight: 600,
+                  fontSize: "11px",
+                  fontWeight: 700,
                   color: "var(--navy-900, #0f172a)",
                   marginTop: 3,
-                  maxWidth: size * 0.65,
+                  maxWidth: size * 0.55,
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
@@ -577,12 +583,12 @@ export function DonutChart({
               <span
                 style={{
                   fontSize: "10px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                   color: activeItem.color,
-                  background: `${activeItem.color}15`,
-                  padding: "1px 6px",
+                  background: `${activeItem.color}18`,
+                  padding: "1px 7px",
                   borderRadius: 999,
-                  marginTop: 2,
+                  marginTop: 3,
                 }}
               >
                 {total > 0 ? Math.round((activeItem.value / total) * 100) : 0}%
@@ -592,8 +598,8 @@ export function DonutChart({
             <>
               <span
                 style={{
-                  fontSize: Math.max(16, size * 0.18),
-                  fontWeight: 700,
+                  fontSize: Math.max(18, size * 0.18),
+                  fontWeight: 800,
                   color: "var(--navy-900, #0f172a)",
                   lineHeight: 1,
                   fontVariantNumeric: "tabular-nums",
@@ -603,12 +609,12 @@ export function DonutChart({
               </span>
               <span
                 style={{
-                  fontSize: Math.max(10, size * 0.065),
+                  fontSize: "10.5px",
                   color: "var(--text-muted, #64748b)",
-                  marginTop: 4,
+                  marginTop: 3,
                   textTransform: "uppercase",
                   letterSpacing: "0.6px",
-                  fontWeight: 600,
+                  fontWeight: 700,
                 }}
               >
                 {centerSubtitle}
@@ -618,17 +624,17 @@ export function DonutChart({
         </div>
       </div>
 
-      {/* Modern Rich Legend */}
+      {/* Modern Informative Progress Legend */}
       {showLegend && legendPosition !== "none" && (
         <div
           style={{
             display: "flex",
             flexDirection: legendPosition === "right" ? "column" : "row",
             flexWrap: legendPosition === "right" ? "nowrap" : "wrap",
-            gap: legendPosition === "right" ? 10 : "10px 18px",
+            gap: legendPosition === "right" ? 8 : "8px 16px",
             alignItems: "stretch",
             justifyContent: legendPosition === "right" ? "center" : "center",
-            minWidth: legendPosition === "right" ? 180 : "100%",
+            minWidth: legendPosition === "right" ? 210 : "100%",
             flex: 1,
           }}
         >
@@ -642,70 +648,95 @@ export function DonutChart({
                 onMouseLeave={handleMouseLeave}
                 style={{
                   display: "flex",
-                  alignItems: "center",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  padding: "6px 10px",
-                  borderRadius: 8,
-                  background: isHovered ? `${d.color}10` : "transparent",
-                  border: isHovered ? `1px solid ${d.color}30` : "1px solid transparent",
-                  transition: "all 0.2s ease",
+                  flexDirection: "column",
+                  gap: 4,
+                  padding: "8px 12px",
+                  borderRadius: 10,
+                  background: isHovered ? `${d.color}12` : "#ffffff",
+                  border: isHovered ? `1px solid ${d.color}40` : "1px solid var(--border, #e2e8f0)",
+                  transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
                   cursor: "pointer",
-                  opacity: activeIndex === null || isHovered ? 1 : 0.6,
+                  boxShadow: isHovered ? `0 4px 12px ${d.color}20` : "0 1px 2px rgba(0,0,0,0.02)",
+                  transform: isHovered ? "translateX(2px)" : "none",
+                  opacity: activeIndex === null || isHovered ? 1 : 0.55,
                 }}
               >
-                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                  <span
-                    style={{
-                      width: 10,
-                      height: 10,
-                      borderRadius: 3,
-                      background: d.color,
-                      flexShrink: 0,
-                      boxShadow: isHovered ? `0 0 6px ${d.color}` : "none",
-                    }}
-                  />
-                  <span
-                    style={{
-                      fontSize: "12.5px",
-                      fontWeight: isHovered ? 600 : 500,
-                      color: isHovered ? d.color : "var(--navy-900, #1e293b)",
-                      whiteSpace: "nowrap",
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
-                    }}
-                  >
-                    {d.label}
-                  </span>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <span
+                      style={{
+                        width: 9,
+                        height: 9,
+                        borderRadius: "50%",
+                        background: d.color,
+                        flexShrink: 0,
+                        boxShadow: isHovered ? `0 0 8px ${d.color}` : "none",
+                      }}
+                    />
+                    <span
+                      style={{
+                        fontSize: "12.5px",
+                        fontWeight: isHovered ? 700 : 600,
+                        color: isHovered ? d.color : "var(--navy-900, #1e293b)",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {d.label}
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                    <span
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color: "var(--navy-900, #0f172a)",
+                        fontVariantNumeric: "tabular-nums",
+                      }}
+                    >
+                      {d.value.toLocaleString("id-ID")}
+                    </span>
+                    <span
+                      style={{
+                        fontSize: "10.5px",
+                        fontWeight: 700,
+                        color: isHovered ? "#ffffff" : d.color,
+                        background: isHovered ? d.color : `${d.color}15`,
+                        padding: "1px 6px",
+                        borderRadius: 999,
+                        minWidth: 32,
+                        textAlign: "center",
+                        fontVariantNumeric: "tabular-nums",
+                        transition: "all 0.2s ease",
+                      }}
+                    >
+                      {pct}%
+                    </span>
+                  </div>
                 </div>
 
-                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
-                  <span
+                {/* Informative Progress Bar */}
+                <div
+                  style={{
+                    height: 4,
+                    borderRadius: 999,
+                    background: "#f1f5f9",
+                    overflow: "hidden",
+                    display: "flex",
+                    marginTop: 1,
+                  }}
+                >
+                  <div
                     style={{
-                      fontSize: "13px",
-                      fontWeight: 700,
-                      color: "var(--navy-900, #0f172a)",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
-                  >
-                    {d.value.toLocaleString("id-ID")}
-                  </span>
-                  <span
-                    style={{
-                      fontSize: "10.5px",
-                      fontWeight: 600,
-                      color: isHovered ? "#ffffff" : "var(--text-muted, #64748b)",
-                      background: isHovered ? d.color : "var(--surface-hover, #f1f5f9)",
-                      padding: "1px 6px",
+                      width: `${pct}%`,
+                      background: d.color,
+                      height: "100%",
                       borderRadius: 999,
-                      minWidth: 32,
-                      textAlign: "center",
-                      fontVariantNumeric: "tabular-nums",
-                      transition: "all 0.2s ease",
+                      transition: "width 0.5s ease",
                     }}
-                  >
-                    {pct}%
-                  </span>
+                  />
                 </div>
               </div>
             );

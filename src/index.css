@@ -2202,46 +2202,39 @@ input, select, textarea {
 }
 
 /* ============================================================
-   MODERN DASHBOARD REDESIGN STYLES
+   MODERN DASHBOARD REDESIGN STYLES (CLEAN MINIMALIST)
    ============================================================ */
 
+/* 1. KOTAK SELAMAT DATANG (SIGNATURE RED ACCENT BANNER) */
 .dash-greeting-banner {
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 60%, #f1f5f9 100%);
-  border: 1px solid var(--border);
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%);
+  border: 1px solid rgba(255, 255, 255, 0.15);
   border-radius: var(--radius-lg, 16px);
-  padding: 18px 22px;
+  padding: 20px 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 18px;
   flex-wrap: wrap;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 4px 20px rgba(153, 27, 27, 0.15);
   position: relative;
   overflow: hidden;
   margin-bottom: 20px;
-}
-
-.dash-greeting-banner::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  bottom: 0;
-  width: 4px;
-  background: linear-gradient(180deg, var(--primary-600, #b91c1c), var(--primary-800, #881337));
+  color: #ffffff;
 }
 
 .dash-greeting-title {
-  font-size: 1.2rem;
+  font-size: 1.3rem;
   font-weight: 700;
-  color: var(--navy-900, #0f172a);
+  color: #ffffff;
   margin: 0;
   line-height: 1.3;
+  letter-spacing: -0.01em;
 }
 
 .dash-greeting-sub {
-  font-size: 12.5px;
-  color: var(--text-muted, #64748b);
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.9);
   margin: 4px 0 0;
   display: flex;
   align-items: center;
@@ -2253,21 +2246,22 @@ input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 3px 11px;
   border-radius: 999px;
   font-size: 11.5px;
   font-weight: 600;
-  background: rgba(16, 185, 129, 0.1);
-  color: #059669;
-  border: 1px solid rgba(16, 185, 129, 0.25);
+  background: rgba(255, 255, 255, 0.18);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(4px);
 }
 
 .dash-status-pill .pulse-dot {
   width: 7px;
   height: 7px;
   border-radius: 50%;
-  background: #10b981;
-  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.3);
+  background: #4ade80;
+  box-shadow: 0 0 0 2px rgba(74, 222, 128, 0.4);
   animation: pulse-green 2s infinite;
 }
 
@@ -2287,30 +2281,32 @@ input, select, textarea {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 12px;
+  padding: 7px 13px;
   font-size: 12px;
   font-weight: 600;
   border-radius: 8px;
-  background: #ffffff;
-  border: 1px solid var(--border);
-  color: var(--navy-900, #1e293b);
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
   text-decoration: none;
   transition: all 0.2s ease;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  backdrop-filter: blur(4px);
 }
 
 .dash-quick-btn:hover {
-  background: var(--surface-hover, #f8fafc);
-  border-color: var(--primary-500, #ef4444);
-  color: var(--primary-700, #b91c1c);
+  background: #ffffff;
+  border-color: #ffffff;
+  color: #991b1b;
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 
-/* Card Segmented Tabs */
+/* 2. CARD SEGMENTED TABS (CLEAN NEUTRAL) */
 .card-segmented-tabs {
   display: inline-flex;
   align-items: center;
   background: #f1f5f9;
+  border: 1px solid #e2e8f0;
   padding: 3px;
   border-radius: 8px;
   gap: 2px;
@@ -2331,21 +2327,23 @@ input, select, textarea {
 .card-tab-btn.active {
   background: #ffffff;
   color: var(--navy-900, #0f172a);
+  font-weight: 700;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-/* Modern Liquidity Banner */
+/* 3. MODERN LIQUIDITY BANNER (SIGNATURE RED THEME) */
 .liquidity-banner {
-  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%);
   border-radius: 12px;
-  padding: 14px 18px;
+  padding: 16px 20px;
   color: #ffffff;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 16px;
-  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 4px 18px rgba(153, 27, 27, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.18);
 }
 
 .liquidity-banner-info {
@@ -2356,35 +2354,37 @@ input, select, textarea {
 
 .liquidity-banner-label {
   font-size: 11px;
-  color: #94a3b8;
+  color: rgba(255, 255, 255, 0.85);
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
 
 .liquidity-banner-value {
-  font-size: 1.35rem;
+  font-size: 1.45rem;
   font-weight: 700;
-  color: #38bdf8;
+  color: #ffffff;
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
 .liquidity-banner-badge {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  background: rgba(56, 189, 248, 0.15);
-  border: 1px solid rgba(56, 189, 248, 0.3);
-  color: #38bdf8;
-  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  color: #ffffff;
+  padding: 5px 12px;
   border-radius: 999px;
   font-size: 11.5px;
-  font-weight: 600;
+  font-weight: 700;
   flex-shrink: 0;
+  backdrop-filter: blur(4px);
 }
 
-/* Modern Rekap Keuangan Grid & Cards */
+/* 4. MODERN REKAP KEUANGAN (CLEAN WHITE CARDS) */
 .rekap-keuangan-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -2398,7 +2398,7 @@ input, select, textarea {
 }
 
 .finance-modern-card {
-  background: var(--surface, #ffffff);
+  background: #ffffff;
   border: 1px solid var(--border, #e2e8f0);
   border-radius: 14px;
   padding: 18px 20px;
@@ -2408,12 +2408,12 @@ input, select, textarea {
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.03);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
 }
 
 .finance-modern-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.05);
   border-color: var(--accent-color, #b91c1c);
 }
 
@@ -2423,8 +2423,8 @@ input, select, textarea {
 }
 
 .finance-modern-card.media {
-  --accent-color: #0284c7;
-  --accent-bg: rgba(2, 132, 199, 0.06);
+  --accent-color: #b91c1c;
+  --accent-bg: rgba(185, 28, 28, 0.06);
 }
 
 .finance-card-top {
@@ -2486,9 +2486,9 @@ input, select, textarea {
 }
 
 .finance-balance-value {
-  font-size: 1.2rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: var(--accent-color);
+  color: var(--navy-900, #0f172a);
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
@@ -2501,7 +2501,7 @@ input, select, textarea {
 
 .finance-flow-item {
   background: #ffffff;
-  border: 1px solid var(--border, #e2e8f0);
+  border: 1px solid #f1f5f9;
   border-radius: 8px;
   padding: 8px 10px;
   display: flex;
@@ -2510,11 +2510,11 @@ input, select, textarea {
 }
 
 .finance-flow-item.inflow {
-  border-left: 3px solid #10b981;
+  border-left: 3px solid #16a34a;
 }
 
 .finance-flow-item.outflow {
-  border-left: 3px solid #ef4444;
+  border-left: 3px solid #dc2626;
 }
 
 .finance-flow-label {
@@ -2536,7 +2536,7 @@ input, select, textarea {
 }
 
 .finance-flow-value.positive {
-  color: #059669;
+  color: #16a34a;
 }
 
 .finance-flow-value.negative {
@@ -2559,13 +2559,13 @@ input, select, textarea {
 }
 
 .finance-ratio-bar-fill-in {
-  background: #10b981;
+  background: #16a34a;
   height: 100%;
   transition: width 0.6s ease;
 }
 
 .finance-ratio-bar-fill-out {
-  background: #ef4444;
+  background: #dc2626;
   height: 100%;
   transition: width 0.6s ease;
 }
@@ -2590,7 +2590,7 @@ input, select, textarea {
 .finance-action-btn {
   font-size: 12px;
   font-weight: 600;
-  color: var(--accent-color);
+  color: var(--text-muted, #64748b);
   background: transparent;
   border: none;
   padding: 4px 8px;
@@ -2604,10 +2604,11 @@ input, select, textarea {
 }
 
 .finance-action-btn:hover {
-  background: var(--accent-bg);
+  background: var(--surface-hover, #f1f5f9);
+  color: var(--navy-900, #0f172a);
 }
 
-/* Status Section Content */
+/* 5. STATUS SECTION CONTENT (CLEAN NEUTRAL) */
 .status-section-content {
   display: flex;
   gap: 24px;
@@ -2635,8 +2636,8 @@ input, select, textarea {
   align-items: center;
   gap: 12px;
   padding: 10px 14px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: #ffffff;
+  border: 1px solid var(--border, #e2e8f0);
   border-radius: var(--radius-sm, 8px);
   position: relative;
   min-width: 0;

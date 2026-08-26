@@ -86,12 +86,12 @@ function SummaryCard({
   iconClass: string;
 }) {
   return (
-    <div className="summary-card animate-fade-slide-up" style={{ minWidth: 0 }}>
+    <div className="summary-card animate-fade-slide-up" style={{ minWidth: 0, border: "1px solid var(--border, #e2e8f0)" }}>
       <div className="summary-card-head">
-        <span className="summary-card-label">{label}</span>
+        <span className="summary-card-label" style={{ color: "var(--text-muted, #64748b)", fontWeight: 600 }}>{label}</span>
         <span className={`summary-card-icon ${iconClass}`}>{icon}</span>
       </div>
-      <span className="summary-card-value">{value}</span>
+      <span className="summary-card-value" style={{ color: "var(--navy-900, #0f172a)" }}>{value}</span>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 6, marginTop: 4 }}>
         <span className="summary-card-sub">{sub}</span>
         {badge && (
@@ -99,10 +99,11 @@ function SummaryCard({
             style={{
               fontSize: "10.5px",
               fontWeight: 600,
-              padding: "2px 7px",
+              padding: "2px 8px",
               borderRadius: 999,
-              background: "rgba(15, 23, 42, 0.06)",
-              color: "var(--navy-900, #0f172a)",
+              background: "#f1f5f9",
+              color: "#475569",
+              border: "1px solid #e2e8f0",
               whiteSpace: "nowrap",
               flexShrink: 0,
             }}
@@ -179,7 +180,7 @@ export function Dashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [toastError]);
 
-  // Status Keanggotaan Data
+  // Status Keanggotaan Data (Clean Natural Colors)
   const statusDonutData = useMemo(() => {
     if (!data) return [];
     return [
@@ -189,7 +190,7 @@ export function Dashboard() {
     ];
   }, [data]);
 
-  // Distribusi Divisi Data
+  // Distribusi Divisi Data (Vibrant Multi-palette)
   const divisionDonutData = useMemo(() => {
     if (!anggota || anggota.length === 0) return [];
     const divMap = new Map<string, number>();
@@ -278,7 +279,7 @@ export function Dashboard() {
 
   return (
     <div className="page-grid" style={{ gap: 22 }}>
-      {/* 1. GREETING BANNER & QUICK ACTIONS */}
+      {/* 1. GREETING BANNER (PROUD SIGNATURE RED BOX) */}
       <div className="dash-greeting-banner animate-fade-slide-up">
         <div>
           <h1 className="dash-greeting-title">
@@ -286,7 +287,7 @@ export function Dashboard() {
           </h1>
           <div className="dash-greeting-sub">
             <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
-              <Calendar size={14} style={{ color: "var(--primary-600)" }} />
+              <Calendar size={14} style={{ color: "rgba(255,255,255,0.9)" }} />
               {formatTanggalPanjang(new Date().toISOString())}
             </span>
             <span>•</span>
@@ -299,25 +300,25 @@ export function Dashboard() {
 
         <div className="dash-quick-shortcuts">
           <Link to="/absensi" className="dash-quick-btn">
-            <PlusCircle size={14} style={{ color: "#0284c7" }} />
+            <PlusCircle size={14} />
             Absensi
           </Link>
           <Link to="/keuangan" className="dash-quick-btn">
-            <PlusCircle size={14} style={{ color: "#b91c1c" }} />
+            <PlusCircle size={14} />
             Kas Chondro
           </Link>
           <Link to="/keuangan-media" className="dash-quick-btn">
-            <PlusCircle size={14} style={{ color: "#0284c7" }} />
+            <PlusCircle size={14} />
             Kas Media
           </Link>
           <Link to="/anggota" className="dash-quick-btn">
-            <PlusCircle size={14} style={{ color: "#10b981" }} />
+            <PlusCircle size={14} />
             Anggota
           </Link>
         </div>
       </div>
 
-      {/* 2. 4 ELEVATED SUMMARY CARDS */}
+      {/* 2. 4 ELEVATED SUMMARY CARDS (CLEAN MINIMALIST) */}
       <div className="dash-summary-grid">
         {loading || !data ? (
           <>
@@ -337,7 +338,7 @@ export function Dashboard() {
               iconClass="summary-card-icon-primary"
             />
             <SummaryCard
-              label="Kehadiran Organisasi"
+              label="Kehadiran Anggota"
               value={`${data.absensi.persentase}%`}
               sub={`${data.absensi.hadir} Hadir · ${data.absensi.izin + data.absensi.sakit} Izin`}
               badge={data.absensi.persentase >= 80 ? "Sangat Baik" : "Stabil"}
@@ -358,14 +359,14 @@ export function Dashboard() {
               sub="Publikasi & media"
               badge="Kas Media"
               icon={<WalletCards size={20} />}
-              iconClass="summary-card-icon-blue"
+              iconClass="summary-card-icon-primary"
             />
           </>
         )}
       </div>
 
-      {/* 3. REKAPITULASI KEUANGAN ORGANISASI (FULL WIDTH) */}
-      <div className="card card-accent card-accent-blue animate-fade-slide-up stagger-2" style={{ width: "100%" }}>
+      {/* 3. REKAPITULASI KEUANGAN ORGANISASI (FULL WIDTH - CLEAN WHITE) */}
+      <div className="card animate-fade-slide-up stagger-2" style={{ width: "100%" }}>
         <div className="card-header" style={{ flexWrap: "wrap", gap: 12 }}>
           <div>
             <h2>Rekapitulasi Keuangan Organisasi</h2>
@@ -418,13 +419,15 @@ export function Dashboard() {
 
                 <div className="finance-card-balance-block">
                   <span className="finance-balance-label">Saldo Kas</span>
-                  <span className="finance-balance-value">{formatRupiah(keuanganChondroSaldo)}</span>
+                  <span className="finance-balance-value" style={{ color: "var(--primary-700, #b91c1c)" }}>
+                    {formatRupiah(keuanganChondroSaldo)}
+                  </span>
                 </div>
 
                 <div className="finance-flow-grid">
                   <div className="finance-flow-item inflow">
                     <span className="finance-flow-label">
-                      <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
+                      <ArrowUpRight size={13} style={{ color: "#16a34a" }} /> Pemasukan
                     </span>
                     <span className="finance-flow-value positive">
                       +{formatRupiah(keuanganChondroPemasukan)}
@@ -447,7 +450,7 @@ export function Dashboard() {
                     <div className="finance-ratio-bar-fill-out" style={{ width: `${chondroOutflowPct}%` }} title={`Pengeluaran: ${chondroOutflowPct}%`} />
                   </div>
                   <div className="finance-ratio-bar-labels">
-                    <span style={{ color: "#059669" }}>Masuk {chondroInflowPct}%</span>
+                    <span style={{ color: "#16a34a" }}>Masuk {chondroInflowPct}%</span>
                     <span style={{ color: "#dc2626" }}>Keluar {chondroOutflowPct}%</span>
                   </div>
                 </div>
@@ -460,7 +463,7 @@ export function Dashboard() {
                   >
                     Detail Rincian
                   </button>
-                  <Link to="/keuangan" className="finance-action-btn" style={{ fontWeight: 700 }}>
+                  <Link to="/keuangan" className="finance-action-btn" style={{ fontWeight: 700, color: "var(--primary-700, #b91c1c)" }}>
                     Kelola Transaksi <ExternalLink size={12} />
                   </Link>
                 </div>
@@ -482,7 +485,7 @@ export function Dashboard() {
 
                 <div className="finance-card-balance-block">
                   <span className="finance-balance-label">Saldo Kas</span>
-                  <span className="finance-balance-value" style={{ color: "#0284c7" }}>
+                  <span className="finance-balance-value" style={{ color: "var(--primary-700, #b91c1c)" }}>
                     {formatRupiah(keuanganMediaSaldo)}
                   </span>
                 </div>
@@ -490,7 +493,7 @@ export function Dashboard() {
                 <div className="finance-flow-grid">
                   <div className="finance-flow-item inflow">
                     <span className="finance-flow-label">
-                      <ArrowUpRight size={13} style={{ color: "#059669" }} /> Pemasukan
+                      <ArrowUpRight size={13} style={{ color: "#16a34a" }} /> Pemasukan
                     </span>
                     <span className="finance-flow-value positive">
                       +{formatRupiah(keuanganMediaPemasukan)}
@@ -513,7 +516,7 @@ export function Dashboard() {
                     <div className="finance-ratio-bar-fill-out" style={{ width: `${mediaOutflowPct}%` }} title={`Pengeluaran: ${mediaOutflowPct}%`} />
                   </div>
                   <div className="finance-ratio-bar-labels">
-                    <span style={{ color: "#059669" }}>Masuk {mediaInflowPct}%</span>
+                    <span style={{ color: "#16a34a" }}>Masuk {mediaInflowPct}%</span>
                     <span style={{ color: "#dc2626" }}>Keluar {mediaOutflowPct}%</span>
                   </div>
                 </div>
@@ -526,7 +529,7 @@ export function Dashboard() {
                   >
                     Detail Rincian
                   </button>
-                  <Link to="/keuangan-media" className="finance-action-btn" style={{ fontWeight: 700 }}>
+                  <Link to="/keuangan-media" className="finance-action-btn" style={{ fontWeight: 700, color: "var(--primary-700, #b91c1c)" }}>
                     Kelola Transaksi <ExternalLink size={12} />
                   </Link>
                 </div>
@@ -536,10 +539,10 @@ export function Dashboard() {
         )}
       </div>
 
-      {/* 4. STRUKTUR ANGGOTA & LOG AKTIVITAS TERKINI (2-COLUMN GRID) */}
+      {/* 4. STRUKTUR ANGGOTA & LOG AKTIVITAS TERKINI (2-COLUMN GRID - CLEAN WHITE) */}
       <div className="dash-main-grid" style={{ alignItems: "stretch" }}>
         {/* LEFT COLUMN: STATUS & DISTRIBUSI ANGGOTA */}
-        <div className="card card-accent card-accent-green animate-fade-slide-up stagger-3" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="card animate-fade-slide-up stagger-3" style={{ display: "flex", flexDirection: "column" }}>
           <div className="card-header" style={{ flexWrap: "wrap", gap: 12 }}>
             <div>
               <h2>Struktur & Distribusi Anggota</h2>
@@ -573,11 +576,11 @@ export function Dashboard() {
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 20, flex: 1, justifyContent: "space-between" }}>
               {/* INTERACTIVE DONUT CHART */}
-              <div style={{ padding: "10px 0" }}>
+              <div style={{ padding: "8px 0" }}>
                 <DonutChart
                   data={memberViewMode === "status" ? statusDonutData : divisionDonutData}
-                  size={190}
-                  thickness={18}
+                  size={210}
+                  thickness={24}
                   centerSubtitle={memberViewMode === "status" ? "Anggota" : "Total Divisi"}
                   showLegend={true}
                   legendPosition="right"
@@ -588,8 +591,8 @@ export function Dashboard() {
               {memberViewMode === "status" ? (
                 <div
                   style={{
-                    background: "rgba(16, 185, 129, 0.08)",
-                    border: "1px solid rgba(16, 185, 129, 0.2)",
+                    background: "var(--surface-hover, #f8fafc)",
+                    border: "1px solid var(--border, #e2e8f0)",
                     borderRadius: 10,
                     padding: "10px 14px",
                     display: "flex",
@@ -599,8 +602,8 @@ export function Dashboard() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Sparkles size={16} style={{ color: "#059669" }} />
-                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#065f46" }}>
+                    <Sparkles size={16} style={{ color: "var(--primary-700, #b91c1c)" }} />
+                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--navy-900, #0f172a)" }}>
                       Rasio Keaktifan: {data.anggota.total > 0 ? Math.round((data.anggota.aktif / data.anggota.total) * 100) : 0}%
                     </span>
                   </div>
@@ -609,7 +612,7 @@ export function Dashboard() {
                     style={{
                       fontSize: "11.5px",
                       fontWeight: 600,
-                      color: "#059669",
+                      color: "var(--primary-700, #b91c1c)",
                       textDecoration: "none",
                       display: "inline-flex",
                       alignItems: "center",
@@ -622,8 +625,8 @@ export function Dashboard() {
               ) : (
                 <div
                   style={{
-                    background: "rgba(2, 132, 199, 0.08)",
-                    border: "1px solid rgba(2, 132, 199, 0.2)",
+                    background: "var(--surface-hover, #f8fafc)",
+                    border: "1px solid var(--border, #e2e8f0)",
                     borderRadius: 10,
                     padding: "10px 14px",
                     display: "flex",
@@ -633,8 +636,8 @@ export function Dashboard() {
                   }}
                 >
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    <Layers size={16} style={{ color: "#0284c7" }} />
-                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#0369a1" }}>
+                    <Layers size={16} style={{ color: "var(--primary-700, #b91c1c)" }} />
+                    <span style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--navy-900, #0f172a)" }}>
                       {divisionDonutData.length} Sektor Divisi Aktif
                     </span>
                   </div>
@@ -643,7 +646,7 @@ export function Dashboard() {
                     style={{
                       fontSize: "11.5px",
                       fontWeight: 600,
-                      color: "#0284c7",
+                      color: "var(--primary-700, #b91c1c)",
                       textDecoration: "none",
                       display: "inline-flex",
                       alignItems: "center",
@@ -659,7 +662,7 @@ export function Dashboard() {
         </div>
 
         {/* RIGHT COLUMN: LOG & AKTIVITAS TERKINI */}
-        <div className="card card-accent animate-fade-slide-up stagger-4" style={{ display: "flex", flexDirection: "column" }}>
+        <div className="card animate-fade-slide-up stagger-4" style={{ display: "flex", flexDirection: "column" }}>
           <div className="card-header">
             <div>
               <h2>Log & Aktivitas Terkini</h2>
@@ -704,53 +707,6 @@ export function Dashboard() {
             </div>
           )}
         </div>
-      </div>
-
-      {/* 4. AKTIVITAS TERBARU (TIMELINE FEED) */}
-      <div className="card card-accent animate-fade-slide-up stagger-4">
-        <div className="card-header">
-          <div>
-            <h2>Log & Aktivitas Terkini</h2>
-            <p>Riwayat kegiatan dan mutasi operasional MB Chondro</p>
-          </div>
-        </div>
-        {loading ? (
-          <div className="aktivitas-list">
-            <Skeleton height={48} />
-            <Skeleton height={48} />
-            <Skeleton height={48} />
-            <Skeleton height={48} />
-          </div>
-        ) : aktivitas.length === 0 ? (
-          <div className="aktivitas-empty">
-            <Activity size={32} style={{ color: "#98a1b0", marginBottom: 8 }} />
-            <p style={{ fontSize: 13, color: "#98a1b0", margin: 0 }}>Belum ada aktivitas terbaru</p>
-            <p style={{ fontSize: 11, color: "#98a1b0", marginTop: 4 }}>
-              Seluruh mutasi keuangan, sesi absensi, dan data anggota baru akan tercatat di sini.
-            </p>
-          </div>
-        ) : (
-          <div className="aktivitas-list">
-            {aktivitas.map((a) => (
-              <div key={a.id} className="aktivitas-item">
-                <span
-                  className="aktivitas-dot"
-                  style={{
-                    background: a.warna,
-                    boxShadow: `0 0 0 3px ${a.warna}20`,
-                  }}
-                />
-                <div className="aktivitas-body">
-                  <div className="aktivitas-title" style={{ fontWeight: 600, color: "var(--navy-900, #0f172a)" }}>
-                    {a.judul}
-                  </div>
-                  <div className="aktivitas-desc">{a.deskripsi}</div>
-                </div>
-                <span className="aktivitas-date">{formatTanggalPendek(a.tanggal)}</span>
-              </div>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* 5. FINANCE DETAIL MODAL */}
