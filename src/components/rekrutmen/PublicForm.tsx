@@ -772,7 +772,7 @@ export function PublicForm() {
                         value={answer?.value || ""}
                         onChange={(e) => handleChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "Ketik jawaban Anda di sini"}
-                        style={{ height: 42, padding: "8px 12px", fontSize: "13.5px" }}
+                        style={{ height: 44, padding: "10px 14px", fontSize: "16px", borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", WebkitAppearance: "none" }}
                       />
                     )}
 
@@ -783,7 +783,7 @@ export function PublicForm() {
                         value={answer?.value || ""}
                         onChange={(e) => handleChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "Tuliskan jawaban lengkap Anda"}
-                        style={{ padding: "10px 12px", fontSize: "13.5px", resize: "vertical" }}
+                        style={{ padding: "10px 14px", fontSize: "16px", resize: "vertical", borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", WebkitAppearance: "none" }}
                       />
                     )}
 
@@ -794,7 +794,7 @@ export function PublicForm() {
                         value={answer?.value || ""}
                         onChange={(e) => handleChange(field.id, e.target.value)}
                         placeholder={field.placeholder || "Masukkan angka"}
-                        style={{ height: 42, padding: "8px 12px", fontSize: "13.5px" }}
+                        style={{ height: 44, padding: "10px 14px", fontSize: "16px", borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", WebkitAppearance: "none" }}
                       />
                     )}
 
@@ -804,7 +804,7 @@ export function PublicForm() {
                         type="date"
                         value={answer?.value || ""}
                         onChange={(e) => handleChange(field.id, e.target.value)}
-                        style={{ height: 42, padding: "8px 12px", fontSize: "13.5px" }}
+                        style={{ height: 44, padding: "10px 14px", fontSize: "16px", borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", WebkitAppearance: "none" }}
                       />
                     )}
 
@@ -813,7 +813,7 @@ export function PublicForm() {
                       <select
                         value={answer?.value || ""}
                         onChange={(e) => handleChange(field.id, e.target.value)}
-                        style={{ height: 42, padding: "8px 12px", fontSize: "13.5px" }}
+                        style={{ height: 44, padding: "10px 14px", fontSize: "16px", borderRadius: 8, border: "1px solid #cbd5e1", width: "100%", boxSizing: "border-box", background: "#ffffff" }}
                       >
                         <option value="">-- Pilih salah satu --</option>
                         {(field.options || []).map((opt) => (
@@ -833,15 +833,15 @@ export function PublicForm() {
                             style={{
                               display: "flex",
                               alignItems: "center",
-                              gap: 10,
-                              padding: "9px 12px",
-                              background: answer?.value === opt.value ? "rgba(185, 28, 28, 0.05)" : "#f8fafc",
+                              gap: 12,
+                              padding: "12px 14px",
+                              background: answer?.value === opt.value ? "rgba(185, 28, 28, 0.06)" : "#f8fafc",
                               borderRadius: 8,
-                              border: answer?.value === opt.value ? "1px solid var(--primary-700, #b91c1c)" : "1px solid #e2e8f0",
+                              border: answer?.value === opt.value ? "1.5px solid var(--primary-700, #b91c1c)" : "1px solid #e2e8f0",
                               cursor: "pointer",
-                              fontSize: "13px",
+                              fontSize: "14px",
                               fontWeight: answer?.value === opt.value ? 600 : 400,
-                              transition: "all 0.15s ease",
+                              WebkitTapHighlightColor: "transparent",
                             }}
                           >
                             <input
@@ -850,9 +850,9 @@ export function PublicForm() {
                               value={opt.value}
                               checked={answer?.value === opt.value}
                               onChange={() => handleChange(field.id, opt.value)}
-                              style={{ width: 16, height: 16, accentColor: "var(--primary-700, #b91c1c)" }}
+                              style={{ width: 18, height: 18, accentColor: "var(--primary-700, #b91c1c)", cursor: "pointer" }}
                             />
-                            <span>{opt.label || opt.value}</span>
+                            <span style={{ flex: 1 }}>{opt.label || opt.value}</span>
                           </label>
                         ))}
                       </div>
@@ -862,24 +862,25 @@ export function PublicForm() {
                     {field.fieldType === "checkbox" && (
                       <div style={{ display: "flex", flexDirection: "column", gap: 8, marginTop: 4 }}>
                         {(field.options || []).map((opt) => {
-                          const isChecked = Boolean(
-                            answer?.value && answer.value.split(",").includes(opt.value)
-                          );
+                          const isChecked = (answer?.value || "")
+                            .split(",")
+                            .filter(Boolean)
+                            .includes(opt.value);
                           return (
                             <label
                               key={opt.value}
                               style={{
                                 display: "flex",
                                 alignItems: "center",
-                                gap: 10,
-                                padding: "9px 12px",
-                                background: isChecked ? "rgba(185, 28, 28, 0.05)" : "#f8fafc",
+                                gap: 12,
+                                padding: "12px 14px",
+                                background: isChecked ? "rgba(185, 28, 28, 0.06)" : "#f8fafc",
                                 borderRadius: 8,
-                                border: isChecked ? "1px solid var(--primary-700, #b91c1c)" : "1px solid #e2e8f0",
+                                border: isChecked ? "1.5px solid var(--primary-700, #b91c1c)" : "1px solid #e2e8f0",
                                 cursor: "pointer",
-                                fontSize: "13px",
+                                fontSize: "14px",
                                 fontWeight: isChecked ? 600 : 400,
-                                transition: "all 0.15s ease",
+                                WebkitTapHighlightColor: "transparent",
                               }}
                             >
                               <input
@@ -887,14 +888,15 @@ export function PublicForm() {
                                 value={opt.value}
                                 checked={isChecked}
                                 onChange={(e) => handleCheckboxChange(field.id, opt.value, e.target.checked)}
-                                style={{ width: 16, height: 16, accentColor: "var(--primary-700, #b91c1c)" }}
+                                style={{ width: 18, height: 18, accentColor: "var(--primary-700, #b91c1c)", cursor: "pointer" }}
                               />
-                              <span>{opt.label || opt.value}</span>
+                              <span style={{ flex: 1 }}>{opt.label || opt.value}</span>
                             </label>
                           );
                         })}
                       </div>
                     )}
+
 
                     {/* INPUT: UPLOAD FOTO / DOKUMEN */}
                     {(field.fieldType === "image" || field.fieldType === "file") && (

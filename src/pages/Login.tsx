@@ -50,11 +50,7 @@ export function Login() {
 
   return (
     <div className="login-page-container">
-      {/* Background Decorative Gradients */}
-      <div className="login-bg-shape-1" />
-      <div className="login-bg-shape-2" />
-
-      <div className="login-card-wrapper animate-fade-slide-up">
+      <div className="login-card-wrapper">
         {/* Top Brand Header */}
         <div className="login-header">
           <div className="login-logo-container">

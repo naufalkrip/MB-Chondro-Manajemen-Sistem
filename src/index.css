@@ -91,7 +91,6 @@
 html {
   min-height: 100%;
   -webkit-text-size-adjust: 100%;
-  touch-action: manipulation;
 }
 
 body {
@@ -102,13 +101,30 @@ body {
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
   min-height: 100%;
   display: flex;
   flex-direction: column;
+}
+
+button,
+a,
+input,
+select,
+textarea,
+label,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a,
+select,
+[role="button"] {
+  cursor: pointer;
 }
 
 @keyframes fade-slide-up {
@@ -3680,7 +3696,6 @@ body,
     backdrop-filter: blur(3px);
     -webkit-backdrop-filter: blur(3px);
     z-index: var(--z-backdrop, 55);
-    touch-action: manipulation;
   }
 
   .sidebar-close {
@@ -5154,11 +5169,11 @@ body,
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 16px;
   color: #0f172a;
   outline: none;
   transition: all 0.2s ease;
-  touch-action: manipulation;
+  -webkit-appearance: none;
 }
 
 .login-input:focus {
@@ -5185,7 +5200,6 @@ body,
   justify-content: center;
   border-radius: 6px;
   transition: color 0.15s ease;
-  touch-action: manipulation;
 }
 
 .login-password-toggle:hover {
@@ -5198,7 +5212,7 @@ body,
   color: #ffffff;
   border: none;
   border-radius: 10px;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -5208,7 +5222,7 @@ body,
   margin-top: 6px;
   box-shadow: 0 4px 14px rgba(185, 28, 28, 0.25);
   transition: all 0.2s ease;
-  touch-action: manipulation;
+  -webkit-appearance: none;
 }
 
 .login-submit-btn:hover:not(:disabled) {
@@ -5275,7 +5289,7 @@ body,
   color: #94a3b8;
 }
 
-/* ---------------- MOBILE INPUT FOCUS & SCROLL LOCK FIX ---------------- */
+/* ---------------- MOBILE INPUT FOCUS & CLICK COMPATIBILITY ---------------- */
 @media (max-width: 768px) {
   input,
   select,
@@ -5284,14 +5298,6 @@ body,
   .form-control,
   .search-input {
     font-size: 16px !important; /* Prevents iOS Safari auto-zoom viewport lock */
-  }
-
-  button,
-  a,
-  input,
-  select,
-  textarea {
-    touch-action: manipulation;
   }
 }
 
