@@ -21,6 +21,7 @@ import logoUrl from "../aset/logo.png";
 import poppinsRegular from "../aset/fonts/Poppins-Regular.ttf";
 import poppinsSemiBold from "../aset/fonts/Poppins-SemiBold.ttf";
 import poppinsBold from "../aset/fonts/Poppins-Bold.ttf";
+import { getRekrutmenImageBase64Item } from "./api";
 
 // ============================================================
 // DESIGN SYSTEM PDF MB CHONDRO — "OFFICIAL ORGANIZATION REPORT"
@@ -985,10 +986,24 @@ async function loadCandidatePhoto(
 
   if (!photoAnswer) return null;
 
-  const rawSrc =
+  let rawSrc =
     photoAnswer.fileBase64 ||
     (photoAnswer.value && (photoAnswer.value.startsWith("data:image/") || photoAnswer.value.startsWith("http")) ? photoAnswer.value : null) ||
     photoAnswer.fileUrl;
+
+  // Jika rawSrc belum berupa Data URL, coba ambil langsung dari backend Google Drive
+  if (!rawSrc || !rawSrc.startsWith("data:image/")) {
+    try {
+      const match = rawSrc ? rawSrc.match(/[\/|=]([a-zA-Z0-9_-]{25,})/) : null;
+      const fetched = await getRekrutmenImageBase64Item({
+        fileId: match ? match[1] : undefined,
+        fileName: photoAnswer.fileName || photoAnswer.value,
+      });
+      if (fetched.success && fetched.base64) {
+        rawSrc = fetched.base64;
+      }
+    } catch {}
+  }
 
   if (!rawSrc) return null;
 

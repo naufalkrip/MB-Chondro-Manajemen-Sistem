@@ -797,53 +797,89 @@ export function SubmissionList({
                   <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block" }}>
                     {idx + 1}. {ans.field?.label || "Pertanyaan"}
                   </label>
+                  {(() => {
+                    const isFileOrPhotoField =
+                      ans.field?.fieldType === "image" ||
+                      ans.field?.fieldType === "file" ||
+                      ans.fileType?.startsWith("image/") ||
+                      ans.field?.label?.toLowerCase().includes("foto") ||
+                      ans.field?.label?.toLowerCase().includes("berkas") ||
+                      ans.field?.label?.toLowerCase().includes("dokumen") ||
+                      ans.field?.label?.toLowerCase().includes("lampiran") ||
+                      Boolean(ans.fileName && /\.(jpe?g|png|webp|gif|pdf|docx?)$/i.test(ans.fileName)) ||
+                      Boolean(ans.value && /\.(jpe?g|png|webp|gif|pdf|docx?)$/i.test(ans.value)) ||
+                      Boolean(ans.fileUrl);
 
-                  {/* Image / File Display */}
-                  {(ans.field?.fieldType === "image" || ans.field?.fieldType === "file" || Boolean(ans.fileUrl) || Boolean(ans.value && (ans.value.startsWith("data:image/") || ans.value.startsWith("http")))) ? (
-                    (() => {
+                    if (isFileOrPhotoField) {
                       const fileUrl = ans.fileUrl || (ans.value && (ans.value.startsWith("data:") || ans.value.startsWith("http")) ? ans.value : null);
                       const isImg =
                         ans.field?.fieldType === "image" ||
                         ans.fileType?.startsWith("image/") ||
                         ans.field?.label?.toLowerCase().includes("foto") ||
                         Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
+                        Boolean(ans.value && /\.(jpe?g|png|webp|gif)$/i.test(ans.value)) ||
                         Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("lh3.googleusercontent") || fileUrl.includes("drive.google.com") || fileUrl.includes("thumbnail")));
 
-                      return fileUrl ? (
+                      const displayName = ans.fileName || (ans.value && !ans.value.startsWith("data:") && !ans.value.startsWith("http") ? ans.value : (isImg ? "Foto Calon Anggota" : "Berkas Terunggah"));
+
+                      return (
                         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 14 }}>
                           {isImg ? (
                             <div
                               style={{ position: "relative", cursor: "pointer" }}
-                                onClick={() =>
-                                  openPhotoLightbox(
-                                    fileUrl,
-                                    ans.field?.label || ans.fileName || "Foto Calon Anggota",
-                                    ans.fileName || ans.value
-                                  )
-                                }
+                              onClick={() =>
+                                openPhotoLightbox(
+                                  fileUrl || "",
+                                  ans.field?.label || displayName || "Foto Calon Anggota",
+                                  displayName
+                                )
+                              }
                             >
-                              <img
-                                src={fileUrl}
-                                alt="Berkas"
-                                referrerPolicy={fileUrl.startsWith("http") ? "no-referrer" : undefined}
-                                onError={(e) => {
-                                  const currentSrc = e.currentTarget.src;
-                                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
-                                  }
-                                }}
-                                style={{
-                                  width: 100,
-                                  height: 75,
-                                  objectFit: "cover",
-                                  borderRadius: 8,
-                                  border: "1px solid #cbd5e1",
-                                  boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                                  background: "#f1f5f9",
-                                }}
-                                title="Klik untuk memperbesar foto"
-                              />
+                              {fileUrl ? (
+                                <img
+                                  src={fileUrl}
+                                  alt="Berkas"
+                                  referrerPolicy={fileUrl.startsWith("http") ? "no-referrer" : undefined}
+                                  onError={(e) => {
+                                    const currentSrc = e.currentTarget.src;
+                                    const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                                    if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                                      e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                                    }
+                                  }}
+                                  style={{
+                                    width: 100,
+                                    height: 75,
+                                    objectFit: "cover",
+                                    borderRadius: 8,
+                                    border: "1px solid #cbd5e1",
+                                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                                    background: "#f1f5f9",
+                                  }}
+                                  title="Klik untuk memperbesar foto"
+                                />
+                              ) : (
+                                <div
+                                  style={{
+                                    width: 100,
+                                    height: 75,
+                                    borderRadius: 8,
+                                    border: "1px dashed #94a3b8",
+                                    background: "#f8fafc",
+                                    display: "flex",
+                                    flexDirection: "column",
+                                    alignItems: "center",
+                                    justifyContent: "center",
+                                    gap: 4,
+                                    color: "#64748b",
+                                    fontSize: "11px",
+                                    fontWeight: 500,
+                                  }}
+                                >
+                                  <span style={{ fontSize: "20px" }}>📷</span>
+                                  <span>Lihat Foto</span>
+                                </div>
+                              )}
                               <div
                                 style={{
                                   position: "absolute",
@@ -864,7 +900,7 @@ export function SubmissionList({
                           )}
                           <div>
                             <strong style={{ fontSize: "13px", color: "var(--navy-900)", display: "block" }}>
-                              {ans.fileName || (isImg ? "Foto Calon Anggota" : ans.value || "Berkas Terunggah")}
+                              {displayName}
                             </strong>
                             <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
                               <button
@@ -893,48 +929,56 @@ export function SubmissionList({
                                       }}
                                     />
                                   </label>
-                                  <button
-                                    type="button"
-                                    className="btn btn-ghost btn-sm"
-                                    onClick={() => handleDownloadImage(fileUrl, ans.field?.label || ans.fileName || undefined)}
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "var(--primary-700, #b91c1c)", padding: "5px 10px" }}
-                                  >
-                                    <Download size={13} /> Unduh
-                                  </button>
+                                  {fileUrl && (
+                                    <button
+                                      type="button"
+                                      className="btn btn-ghost btn-sm"
+                                      onClick={() => handleDownloadImage(fileUrl, ans.field?.label || ans.fileName || undefined)}
+                                      style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "var(--primary-700, #b91c1c)", padding: "5px 10px" }}
+                                    >
+                                      <Download size={13} /> Unduh
+                                    </button>
+                                  )}
                                 </>
                               )}
                             </div>
                           </div>
                         </div>
-                      ) : (
-                        <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block", marginTop: 2 }}>
-                          {ans.value || <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>-</span>}
-                        </strong>
                       );
-                    })()
-                  ) : ans.field?.fieldType === "checkbox" ? (
-                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                      {ans.value.split(",").filter(Boolean).map((v, i) => (
-                        <span
-                          key={i}
-                          style={{
-                            fontSize: "12.5px",
-                            fontWeight: 600,
-                            background: "#f1f5f9",
-                            padding: "2px 8px",
-                            borderRadius: 4,
-                            color: "var(--navy-900)",
-                          }}
-                        >
-                          ✓ {v}
-                        </span>
-                      ))}
-                    </div>
-                  ) : (
-                    <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block", marginTop: 2 }}>
-                      {ans.value || <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>-</span>}
-                    </strong>
-                  )}
+                    }
+
+                    if (ans.field?.fieldType === "checkbox") {
+                      return (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                          {ans.value.split(",").filter(Boolean).map((v, i) => (
+                            <span
+                              key={i}
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "3px 10px",
+                                background: "#f1f5f9",
+                                color: "var(--navy-900)",
+                                borderRadius: 6,
+                                fontSize: "12.5px",
+                                fontWeight: 500,
+                                border: "1px solid #e2e8f0",
+                              }}
+                            >
+                              <Check size={12} style={{ color: "#16a34a" }} /> {v.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      );
+                    }
+
+                    return (
+                      <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block", marginTop: 2 }}>
+                        {ans.value || <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>-</span>}
+                      </strong>
+                    );
+                  })()}
                 </div>
               ))}
             </div>

@@ -346,14 +346,26 @@ export function PublicForm() {
 
     setSubmitting(true);
     try {
-      const payloadAnswers = answers.map((a) => ({
-        fieldId: a.fieldId,
-        value: a.value,
-        fileUrl: a.fileBase64 || null,
-        fileName: a.fileName || null,
-        fileType: a.fileType || null,
-        fileSize: a.fileSize || null,
-      }));
+      const payloadAnswers = await Promise.all(
+        answers.map(async (a) => {
+          let b64 = a.fileBase64 || null;
+          if (a.file && !b64) {
+            try {
+              b64 = await compressImageToSafeHd(a.file);
+            } catch {
+              b64 = await fileToBase64(a.file);
+            }
+          }
+          return {
+            fieldId: a.fieldId,
+            value: a.value || a.fileName || (a.file ? a.file.name : ""),
+            fileUrl: b64,
+            fileName: a.fileName || (a.file ? a.file.name : null),
+            fileType: a.fileType || (a.file ? a.file.type : null),
+            fileSize: a.fileSize || (a.file ? a.file.size : null),
+          };
+        })
+      );
 
       const res = await addRekrutmenSubmissionItem({
         formId: form.id,
