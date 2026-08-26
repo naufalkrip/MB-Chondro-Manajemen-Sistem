@@ -189,23 +189,85 @@ export function PublicForm() {
     });
 
     const reader = new FileReader();
-    reader.onload = () => {
-      const base64 = reader.result as string;
-      setAnswers((prev) =>
-        prev.map((a) =>
-          a.fieldId === field.id
-            ? {
-                ...a,
-                file,
-                value: file.name,
-                fileBase64: base64,
-                fileName: file.name,
-                fileSize: file.size,
-                fileType: file.type,
-              }
-            : a
-        )
-      );
+    reader.onload = (ev) => {
+      const rawBase64 = ev.target?.result as string;
+
+      if (field.fieldType === "image" || file.type.startsWith("image/")) {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = img.width;
+          let height = img.height;
+          const maxDim = 900;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext("2d");
+          let finalBase64 = rawBase64;
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            finalBase64 = canvas.toDataURL("image/jpeg", 0.75);
+          }
+
+          setAnswers((prev) =>
+            prev.map((a) =>
+              a.fieldId === field.id
+                ? {
+                    ...a,
+                    file,
+                    value: file.name,
+                    fileBase64: finalBase64,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                  }
+                : a
+            )
+          );
+        };
+        img.onerror = () => {
+          setAnswers((prev) =>
+            prev.map((a) =>
+              a.fieldId === field.id
+                ? {
+                    ...a,
+                    file,
+                    value: file.name,
+                    fileBase64: rawBase64,
+                    fileName: file.name,
+                    fileSize: file.size,
+                    fileType: file.type,
+                  }
+                : a
+            )
+          );
+        };
+        img.src = rawBase64;
+      } else {
+        setAnswers((prev) =>
+          prev.map((a) =>
+            a.fieldId === field.id
+              ? {
+                  ...a,
+                  file,
+                  value: file.name,
+                  fileBase64: rawBase64,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                }
+              : a
+          )
+        );
+      }
     };
     reader.readAsDataURL(file);
   };

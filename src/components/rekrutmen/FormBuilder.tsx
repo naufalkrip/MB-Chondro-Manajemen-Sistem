@@ -233,52 +233,78 @@ export function FormBuilder({
     setTimeout(() => setCopySuccess(false), 2000);
   };
 
-  const handleExampleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const [compressingImage, setCompressingImage] = useState(false);
+
+  const compressImageToSafeBase64 = (file: File, maxChars = 32000): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
+      reader.onload = (ev) => {
+        const img = new Image();
+        img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
+        img.onload = () => {
+          let maxDim = 360;
+          let quality = 0.7;
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          if (!ctx) {
+            return resolve(ev.target?.result as string);
+          }
+
+          let result = "";
+          for (let attempt = 0; attempt < 5; attempt++) {
+            let width = img.width;
+            let height = img.height;
+            if (width > maxDim || height > maxDim) {
+              if (width > height) {
+                height = Math.round((height * maxDim) / width);
+                width = maxDim;
+              } else {
+                width = Math.round((width * maxDim) / height);
+                height = maxDim;
+              }
+            }
+            canvas.width = width;
+            canvas.height = height;
+            ctx.clearRect(0, 0, width, height);
+            ctx.drawImage(img, 0, 0, width, height);
+            result = canvas.toDataURL("image/jpeg", quality);
+
+            if (result.length <= maxChars) {
+              break;
+            }
+            maxDim = Math.round(maxDim * 0.75);
+            quality = Math.max(0.35, quality - 0.15);
+          }
+          resolve(result);
+        };
+        img.src = ev.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleExampleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       if (!file.type.startsWith("image/")) {
         alert("Pilih file gambar yang valid (JPG, PNG, WEBP).");
         return;
       }
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 500;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const compressed = canvas.toDataURL("image/jpeg", 0.75);
-            setFieldForm((p) => ({
-              ...p,
-              exampleImageUrl: compressed,
-              exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
-            }));
-          } else {
-            setFieldForm((p) => ({
-              ...p,
-              exampleImageUrl: ev.target?.result as string,
-              exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
-            }));
-          }
-        };
-        img.src = ev.target?.result as string;
-      };
-      reader.readAsDataURL(file);
+      try {
+        setCompressingImage(true);
+        const compressed = await compressImageToSafeBase64(file);
+        setFieldForm((p) => ({
+          ...p,
+          exampleImageUrl: compressed,
+          exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
+        }));
+      } catch (err) {
+        console.error("Gagal memproses gambar:", err);
+        alert("Gagal memproses gambar. Silakan coba file gambar lain.");
+      } finally {
+        setCompressingImage(false);
+      }
     }
   };
 
@@ -1051,16 +1077,25 @@ export function FormBuilder({
 
               {/* Upload Gambar Contoh Instruksi */}
               <div className="form-group" style={{ gap: 6 }}>
-                <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Gambar Contoh / Petunjuk Visual (Opsional)</label>
+                <label style={{ fontSize: "12.5px", fontWeight: 600 }}>
+                  Gambar Contoh / Petunjuk Visual (Opsional)
+                </label>
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <label
                     className="btn btn-outline btn-sm"
-                    style={{ cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+                    style={{
+                      cursor: compressingImage ? "not-allowed" : "pointer",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      opacity: compressingImage ? 0.6 : 1,
+                    }}
                   >
-                    <Upload size={14} /> Unggah Gambar Contoh
+                    <Upload size={14} /> {compressingImage ? "Memproses Gambar..." : "Unggah Gambar Contoh"}
                     <input
                       type="file"
                       accept="image/*"
+                      disabled={compressingImage}
                       onChange={handleExampleImageUpload}
                       style={{ display: "none" }}
                     />
@@ -1075,6 +1110,21 @@ export function FormBuilder({
                       <Trash2 size={14} /> Hapus Gambar Contoh
                     </button>
                   )}
+                </div>
+
+                {/* Atau input URL gambar */}
+                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
+                  <input
+                    value={fieldForm.exampleImageUrl.startsWith("data:image/") ? "(Gambar terunggah dan terkompresi)" : fieldForm.exampleImageUrl}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (!val.startsWith("(Gambar terunggah")) {
+                        setFieldForm((p) => ({ ...p, exampleImageUrl: val }));
+                      }
+                    }}
+                    placeholder="Atau tempel link gambar (https://...)"
+                    style={{ flex: 1, height: 36, padding: "6px 10px", fontSize: "12.5px" }}
+                  />
                 </div>
 
                 {/* Preview Gambar Contoh jika ada */}
@@ -1107,7 +1157,9 @@ export function FormBuilder({
                         {fieldForm.exampleImageTitle || "Gambar Contoh Terpasang"}
                       </strong>
                       <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-                        Gambar ini akan muncul di atas kolom unggahan pada form calon anggota.
+                        {fieldForm.exampleImageUrl.startsWith("data:image/")
+                          ? "✓ Gambar berhasil dioptimasi & aman untuk disimpan."
+                          : "Gambar URL eksternal terpasang."}
                       </span>
                     </div>
                   </div>

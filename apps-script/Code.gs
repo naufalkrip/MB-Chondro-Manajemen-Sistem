@@ -318,14 +318,15 @@ function ensureSetup() {
 
 function ensureHeaders(sheet, cfg) {
   var lastRow = sheet.getLastRow();
-  if (lastRow === 0) {
+  var lastCol = sheet.getLastColumn();
+  if (lastRow === 0 || lastCol === 0) {
     sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
     sheet.getRange(1, 1, 1, cfg.headers.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
     return;
   }
   // Pastikan baris pertama berisi header; jika kosong, isi header.
-  var firstRow = sheet.getRange(1, 1, 1, cfg.headers.length).getValues()[0];
+  var firstRow = sheet.getRange(1, 1, 1, Math.max(lastCol, cfg.headers.length)).getValues()[0];
   var needsHeader = firstRow.every(function (cell) { return cell === "" || cell === null; });
   if (needsHeader) {
     sheet.getRange(1, 1, 1, cfg.headers.length).setValues([cfg.headers]);
@@ -333,13 +334,23 @@ function ensureHeaders(sheet, cfg) {
     sheet.setFrozenRows(1);
     return;
   }
-  // Tambahkan header baru di akhir baris header (non-destruktif),
-  // misal kolom "Waktu" pada sheet ABSENSI yang sudah ada.
-  var existingHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
-  if (existingHeaders.length < cfg.headers.length) {
-    var missing = cfg.headers.slice(existingHeaders.length);
-    sheet.getRange(1, existingHeaders.length + 1, 1, missing.length).setValues([missing]);
-    sheet.getRange(1, existingHeaders.length + 1, 1, missing.length).setFontWeight("bold");
+  // Cek apakah ada header baru yang belum ada di spreadsheet
+  var existingMap = {};
+  for (var i = 0; i < firstRow.length; i++) {
+    var txt = String(firstRow[i] || "").trim().toLowerCase();
+    if (txt) existingMap[txt] = true;
+  }
+  var missing = [];
+  for (var j = 0; j < cfg.headers.length; j++) {
+    var hName = cfg.headers[j];
+    var kName = cfg.keys[j];
+    if (!existingMap[String(hName).toLowerCase()] && !existingMap[String(kName).toLowerCase()]) {
+      missing.push(hName);
+    }
+  }
+  if (missing.length > 0) {
+    sheet.getRange(1, lastCol + 1, 1, missing.length).setValues([missing]);
+    sheet.getRange(1, lastCol + 1, 1, missing.length).setFontWeight("bold");
   }
 }
 
@@ -368,16 +379,46 @@ function formatDate(d) {
 function readRows(cfg) {
   var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
-  if (lastRow < 2) return [];
-  var values = sheet.getRange(1, 1, lastRow, cfg.keys.length).getValues();
+  var lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+
+  var numCols = Math.max(lastCol, cfg.keys.length);
+  var values = sheet.getRange(1, 1, lastRow, numCols).getValues();
+  var headerRow = values[0];
+
+  // Petakan nama header / key ke index kolom (case-insensitive)
+  var colMap = {};
+  for (var h = 0; h < headerRow.length; h++) {
+    var headerText = String(headerRow[h] || "").trim().toLowerCase();
+    if (headerText) {
+      colMap[headerText] = h;
+    }
+  }
+
   var result = [];
   for (var i = 1; i < values.length; i++) {
-    var idRaw = values[i][cfg.idCol];
+    var row = values[i];
+    var idColIdx = cfg.idCol;
+    var idKey = String(cfg.keys[cfg.idCol] || "").toLowerCase();
+    var idHeader = String(cfg.headers[cfg.idCol] || "").toLowerCase();
+    if (colMap[idKey] !== undefined) idColIdx = colMap[idKey];
+    else if (colMap[idHeader] !== undefined) idColIdx = colMap[idHeader];
+
+    var idRaw = row[idColIdx];
     if (idRaw === "" || idRaw === null || idRaw === undefined) continue;
+
     var obj = {};
     for (var c = 0; c < cfg.keys.length; c++) {
-      var raw = values[i][c];
-      obj[cfg.keys[c]] = raw instanceof Date ? formatDate(raw) : raw;
+      var kName = cfg.keys[c];
+      var hName = cfg.headers[c];
+      var idx = c;
+      if (colMap[String(kName).toLowerCase()] !== undefined) {
+        idx = colMap[String(kName).toLowerCase()];
+      } else if (colMap[String(hName).toLowerCase()] !== undefined) {
+        idx = colMap[String(hName).toLowerCase()];
+      }
+      var raw = idx < row.length ? row[idx] : "";
+      obj[kName] = raw instanceof Date ? formatDate(raw) : raw;
     }
     result.push(obj);
   }
@@ -1280,6 +1321,9 @@ function addRekrutmenField(data) {
 
   var isUpload = data.fieldType === "image" || data.fieldType === "file";
   var exampleImageUrl = isUpload ? String(data.exampleImageUrl || "").trim() : "";
+  if (exampleImageUrl.length > 48000) {
+    exampleImageUrl = exampleImageUrl.substring(0, 48000);
+  }
   var exampleImageTitle = isUpload ? String(data.exampleImageTitle || "").trim() : "";
   var maxFileSize = isUpload ? (Number(data.maxFileSize) || (data.fieldType === "image" ? 2 : 5)) : 0;
 
@@ -1334,6 +1378,9 @@ function updateRekrutmenField(data) {
   var fType = data.fieldType || existingRow[4] || "text";
   var isUpload = fType === "image" || fType === "file";
   var exampleImageUrl = isUpload ? (data.exampleImageUrl !== undefined ? String(data.exampleImageUrl).trim() : String(existingRow[9] || "")) : "";
+  if (exampleImageUrl.length > 48000) {
+    exampleImageUrl = exampleImageUrl.substring(0, 48000);
+  }
   var exampleImageTitle = isUpload ? (data.exampleImageTitle !== undefined ? String(data.exampleImageTitle).trim() : String(existingRow[10] || "")) : "";
   var maxFileSize = isUpload ? (data.maxFileSize !== undefined ? Number(data.maxFileSize) : (Number(existingRow[11]) || 2)) : 0;
 
@@ -1405,7 +1452,7 @@ function reorderRekrutmenFields(formId, fieldOrders) {
     var id = String(rows[r][0]);
     if (orderMap[id] !== undefined) {
       rows[r][7] = orderMap[id];
-      rows[r][9] = new Date().toISOString();
+      rows[r][14] = new Date().toISOString();
     }
   }
 
@@ -1547,12 +1594,16 @@ function addRekrutmenSubmission(data) {
     for (var i = 0; i < answers.length; i++) {
       var item = answers[i];
       var ansId = generateId(ansCfg);
+      var fileUrl = String(item.fileUrl || "");
+      if (fileUrl.length > 48000) {
+        fileUrl = fileUrl.substring(0, 48000);
+      }
       var ansRow = [
         ansId,
         subId,
         String(item.fieldId || ""),
         String(item.value || ""),
-        String(item.fileUrl || ""),
+        fileUrl,
         String(item.fileName || ""),
         String(item.fileType || ""),
         Number(item.fileSize) || 0,
