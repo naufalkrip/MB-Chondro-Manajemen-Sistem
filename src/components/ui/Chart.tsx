@@ -390,146 +390,326 @@ export function ChartAttendance({
 }
 
 interface DonutChartProps {
-  data: { label: string; value: number; color: string }[];
+  data: { label: string; value: number; color: string; subLabel?: string }[];
   size?: number;
+  thickness?: number;
+  centerTitle?: string;
+  centerSubtitle?: string;
   showLegend?: boolean;
-  legendPosition?: "right" | "bottom";
+  legendPosition?: "right" | "bottom" | "none";
+  activeLabel?: string | null;
+  onHoverLabel?: (label: string | null) => void;
 }
 
-export function DonutChart({ 
-  data, 
-  size = 180, 
+export function DonutChart({
+  data,
+  size = 200,
+  thickness = 18,
+  centerTitle,
+  centerSubtitle = "Total",
   showLegend = true,
-  legendPosition = "right"
+  legendPosition = "right",
+  activeLabel,
+  onHoverLabel,
 }: DonutChartProps) {
-  const total = data.reduce((s, d) => s + d.value, 0);
-  const stroke = 14;
-  const r = (size - stroke) / 2;
+  const [internalHover, setInternalHover] = useState<number | null>(null);
+
+  const total = useMemo(() => data.reduce((s, d) => s + (Number(d.value) || 0), 0), [data]);
+  const activeIndex = useMemo(() => {
+    if (activeLabel !== undefined && activeLabel !== null) {
+      return data.findIndex((d) => d.label === activeLabel);
+    }
+    return internalHover;
+  }, [activeLabel, data, internalHover]);
+
+  const activeItem = activeIndex !== null && activeIndex >= 0 ? data[activeIndex] : null;
+
+  const r = (size - thickness) / 2;
   const c = 2 * Math.PI * r;
-  let offset = 0;
 
-  const segments = data.map((d) => {
-    const fraction = total === 0 ? 0 : d.value / total;
-    const seg = {
-      ...d,
-      dash: fraction * c,
-      offset,
-      empty: fraction === 0,
-    };
-    offset += fraction * c;
-    return seg;
-  });
+  // Calculate SVG stroke segments with gap
+  const gap = total > 0 && data.filter((d) => d.value > 0).length > 1 ? 1.5 : 0;
+  let accumulatedOffset = 0;
 
-  const layoutStyle: React.CSSProperties = legendPosition === "right" 
-    ? { display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }
-    : { display: "flex", flexDirection: "column", alignItems: "center", gap: 16 };
+  const segments = useMemo(() => {
+    return data.map((d, i) => {
+      const val = Number(d.value) || 0;
+      const fraction = total === 0 ? 0 : val / total;
+      const arcLength = Math.max(0, fraction * c - (val > 0 ? gap : 0));
+      const currentOffset = accumulatedOffset;
+      accumulatedOffset += fraction * c;
+      const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+
+      return {
+        ...d,
+        index: i,
+        val,
+        pct,
+        dashArray: `${arcLength} ${c - arcLength}`,
+        dashOffset: -currentOffset,
+        empty: val <= 0,
+      };
+    });
+  }, [data, total, c, gap]);
+
+  const handleMouseEnter = (idx: number, label: string) => {
+    setInternalHover(idx);
+    onHoverLabel?.(label);
+  };
+
+  const handleMouseLeave = () => {
+    setInternalHover(null);
+    onHoverLabel?.(null);
+  };
+
+  const layoutStyle: React.CSSProperties =
+    legendPosition === "right"
+      ? { display: "flex", alignItems: "center", justifyContent: "center", gap: 28, flexWrap: "wrap" }
+      : legendPosition === "bottom"
+      ? { display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }
+      : { display: "inline-flex", alignItems: "center", justifyContent: "center" };
 
   return (
     <div style={layoutStyle}>
-      <div style={{ position: "relative", width: size, height: size, flexShrink: 0 }}>
-        <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#f1f5f9" strokeWidth={stroke} />
-          {segments.map((seg, i) =>
-            seg.empty ? null : (
+      {/* SVG Donut Circle */}
+      <div
+        style={{
+          position: "relative",
+          width: size,
+          height: size,
+          flexShrink: 0,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        <svg
+          width={size}
+          height={size}
+          viewBox={`0 0 ${size} ${size}`}
+          style={{ overflow: "visible" }}
+        >
+          {/* Subtle background track */}
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="#f1f5f9"
+            strokeWidth={thickness - 2}
+          />
+
+          {/* Value arcs */}
+          {segments.map((seg) => {
+            if (seg.empty) return null;
+            const isHovered = activeIndex === seg.index;
+            return (
               <circle
-                key={`${seg.label}-${i}`}
+                key={`${seg.label}-${seg.index}`}
                 cx={size / 2}
                 cy={size / 2}
                 r={r}
                 fill="none"
                 stroke={seg.color}
-                strokeWidth={stroke}
-                strokeDasharray={`${seg.dash} ${c - seg.dash}`}
-                strokeDashoffset={-seg.offset}
+                strokeWidth={isHovered ? thickness + 4 : thickness}
+                strokeDasharray={seg.dashArray}
+                strokeDashoffset={seg.dashOffset}
                 strokeLinecap="round"
+                onMouseEnter={() => handleMouseEnter(seg.index, seg.label)}
+                onMouseLeave={handleMouseLeave}
                 style={{
                   transform: "rotate(-90deg)",
                   transformOrigin: `${size / 2}px ${size / 2}px`,
-                  transition: "stroke-dashoffset 0.8s ease-out, stroke-dasharray 0.8s ease-out",
+                  transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
+                  cursor: "pointer",
+                  filter: isHovered
+                    ? `drop-shadow(0 4px 10px ${seg.color}55)`
+                    : "none",
+                  opacity: activeIndex === null || isHovered ? 1 : 0.65,
                 }}
               />
-            )
-          )}
+            );
+          })}
         </svg>
-        <div style={{
-          position: "absolute",
-          inset: 0,
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "none",
-        }}>
-          <span style={{
-            fontSize: size * 0.18,
-            fontWeight: 700,
-            color: "#141a24",
-            lineHeight: 1,
-            fontVariantNumeric: "tabular-nums",
-          }}>
-            {total}
-          </span>
-          <span style={{
-            fontSize: size * 0.07,
-            color: "#6b7688",
-            marginTop: 2,
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            fontWeight: 500,
-          }}>
-            Total
-          </span>
+
+        {/* Dynamic Center Label */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "none",
+            textAlign: "center",
+            padding: "0 12px",
+            transition: "all 0.25s ease",
+          }}
+        >
+          {activeItem ? (
+            <>
+              <span
+                style={{
+                  fontSize: Math.max(12, size * 0.16),
+                  fontWeight: 700,
+                  color: activeItem.color,
+                  lineHeight: 1.1,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {activeItem.value.toLocaleString("id-ID")}
+              </span>
+              <span
+                style={{
+                  fontSize: Math.max(10, size * 0.065),
+                  fontWeight: 600,
+                  color: "var(--navy-900, #0f172a)",
+                  marginTop: 3,
+                  maxWidth: size * 0.65,
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {activeItem.label}
+              </span>
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 600,
+                  color: activeItem.color,
+                  background: `${activeItem.color}15`,
+                  padding: "1px 6px",
+                  borderRadius: 999,
+                  marginTop: 2,
+                }}
+              >
+                {total > 0 ? Math.round((activeItem.value / total) * 100) : 0}%
+              </span>
+            </>
+          ) : (
+            <>
+              <span
+                style={{
+                  fontSize: Math.max(16, size * 0.18),
+                  fontWeight: 700,
+                  color: "var(--navy-900, #0f172a)",
+                  lineHeight: 1,
+                  fontVariantNumeric: "tabular-nums",
+                }}
+              >
+                {centerTitle !== undefined ? centerTitle : total.toLocaleString("id-ID")}
+              </span>
+              <span
+                style={{
+                  fontSize: Math.max(10, size * 0.065),
+                  color: "var(--text-muted, #64748b)",
+                  marginTop: 4,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.6px",
+                  fontWeight: 600,
+                }}
+              >
+                {centerSubtitle}
+              </span>
+            </>
+          )}
         </div>
       </div>
 
-      {showLegend && (
-        <div style={{
-          display: "flex",
-          flexDirection: legendPosition === "right" ? "column" : "row",
-          flexWrap: legendPosition === "right" ? "nowrap" : "wrap",
-          gap: legendPosition === "right" ? 10 : "12px 20px",
-          alignItems: "flex-start",
-          justifyContent: legendPosition === "right" ? "flex-start" : "center",
-          minWidth: legendPosition === "right" ? 140 : 0,
-        }}>
-          {data.map((d) => (
-            <div key={d.label} style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              whiteSpace: "nowrap",
-              fontSize: 12,
-              color: "#45506a",
-              opacity: d.value > 0 ? 1 : 0.5,
-            }}>
-              <span style={{
-                width: 10,
-                height: 10,
-                borderRadius: 2,
-                background: d.color,
-                flexShrink: 0,
-              }} />
-              <span style={{ fontWeight: 500 }}>{d.label}</span>
-              <span style={{ 
-                fontWeight: 600, 
-                color: "#141a24", 
-                marginLeft: 4,
-                fontVariantNumeric: "tabular-nums",
-              }}>
-                {d.value}
-              </span>
-              {d.value > 0 && total > 0 && (
-                <span style={{ 
-                  fontSize: 10, 
-                  color: "#98a1b0", 
-                  marginLeft: 4,
-                  fontVariantNumeric: "tabular-nums",
-                }}>
-                  {Math.round((d.value / total) * 100)}%
-                </span>
-              )}
-            </div>
-          ))}
+      {/* Modern Rich Legend */}
+      {showLegend && legendPosition !== "none" && (
+        <div
+          style={{
+            display: "flex",
+            flexDirection: legendPosition === "right" ? "column" : "row",
+            flexWrap: legendPosition === "right" ? "nowrap" : "wrap",
+            gap: legendPosition === "right" ? 10 : "10px 18px",
+            alignItems: "stretch",
+            justifyContent: legendPosition === "right" ? "center" : "center",
+            minWidth: legendPosition === "right" ? 180 : "100%",
+            flex: 1,
+          }}
+        >
+          {data.map((d, idx) => {
+            const isHovered = activeIndex === idx;
+            const pct = total > 0 ? Math.round((d.value / total) * 100) : 0;
+            return (
+              <div
+                key={d.label}
+                onMouseEnter={() => handleMouseEnter(idx, d.label)}
+                onMouseLeave={handleMouseLeave}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  padding: "6px 10px",
+                  borderRadius: 8,
+                  background: isHovered ? `${d.color}10` : "transparent",
+                  border: isHovered ? `1px solid ${d.color}30` : "1px solid transparent",
+                  transition: "all 0.2s ease",
+                  cursor: "pointer",
+                  opacity: activeIndex === null || isHovered ? 1 : 0.6,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                  <span
+                    style={{
+                      width: 10,
+                      height: 10,
+                      borderRadius: 3,
+                      background: d.color,
+                      flexShrink: 0,
+                      boxShadow: isHovered ? `0 0 6px ${d.color}` : "none",
+                    }}
+                  />
+                  <span
+                    style={{
+                      fontSize: "12.5px",
+                      fontWeight: isHovered ? 600 : 500,
+                      color: isHovered ? d.color : "var(--navy-900, #1e293b)",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {d.label}
+                  </span>
+                </div>
+
+                <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                  <span
+                    style={{
+                      fontSize: "13px",
+                      fontWeight: 700,
+                      color: "var(--navy-900, #0f172a)",
+                      fontVariantNumeric: "tabular-nums",
+                    }}
+                  >
+                    {d.value.toLocaleString("id-ID")}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: "10.5px",
+                      fontWeight: 600,
+                      color: isHovered ? "#ffffff" : "var(--text-muted, #64748b)",
+                      background: isHovered ? d.color : "var(--surface-hover, #f1f5f9)",
+                      padding: "1px 6px",
+                      borderRadius: 999,
+                      minWidth: 32,
+                      textAlign: "center",
+                      fontVariantNumeric: "tabular-nums",
+                      transition: "all 0.2s ease",
+                    }}
+                  >
+                    {pct}%
+                  </span>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
