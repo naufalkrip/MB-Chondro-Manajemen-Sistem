@@ -1258,13 +1258,21 @@ export function FormBuilder({
               <img
                 src={previewImage.url}
                 alt="Pratinjau Penuh"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  const currentSrc = e.currentTarget.src;
+                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                  }
+                }}
                 style={{
                   maxWidth: "95vw",
                   maxHeight: "85vh",
                   objectFit: "contain",
                   borderRadius: 10,
                   boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8)",
-                  background: "#000000",
                 }}
               />
             </div>

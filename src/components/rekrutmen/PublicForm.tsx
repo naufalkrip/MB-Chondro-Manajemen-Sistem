@@ -56,6 +56,15 @@ export function PublicForm() {
   const [submitted, setSubmitted] = useState(false);
   const [activeSampleImage, setActiveSampleImage] = useState<{ url: string; title: string } | null>(null);
   const [imageZoom, setImageZoom] = useState<number>(1);
+  const [lightboxLoading, setLightboxLoading] = useState(false);
+  const [lightboxError, setLightboxError] = useState(false);
+
+  const openLightbox = (url: string, title: string) => {
+    setActiveSampleImage({ url, title });
+    setImageZoom(1);
+    setLightboxLoading(true);
+    setLightboxError(false);
+  };
 
   const sortedFields = useMemo(() => {
     if (!form?.fields) return [];
@@ -816,10 +825,10 @@ export function PublicForm() {
                     {(field.fieldType === "image" || field.fieldType === "file") && field.exampleImageUrl && field.exampleImageUrl.trim() !== "" && (
                       <div
                         onClick={() =>
-                          setActiveSampleImage({
-                            url: field.exampleImageUrl || "",
-                            title: field.exampleImageTitle || `Format / Petunjuk Foto: ${field.label}`,
-                          })
+                          openLightbox(
+                            field.exampleImageUrl || "",
+                            field.exampleImageTitle || `Format / Petunjuk Foto: ${field.label}`
+                          )
                         }
                         style={{
                           padding: "10px 14px",
@@ -838,6 +847,8 @@ export function PublicForm() {
                         <img
                           src={field.exampleImageUrl}
                           alt="Contoh yang benar"
+                          referrerPolicy="no-referrer"
+                          crossOrigin="anonymous"
                           style={{
                             width: 76,
                             height: 54,
@@ -846,6 +857,7 @@ export function PublicForm() {
                             border: "1px solid #7dd3fc",
                             boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
                             flexShrink: 0,
+                            background: "#e0f2fe",
                           }}
                         />
                         <div style={{ flex: 1 }}>
@@ -1061,11 +1073,13 @@ export function PublicForm() {
                                 <img
                                   src={answer.fileBase64}
                                   alt="Preview Foto"
+                                  referrerPolicy="no-referrer"
+                                  crossOrigin="anonymous"
                                   onClick={() =>
-                                    setActiveSampleImage({
-                                      url: answer.fileBase64 || "",
-                                      title: `Foto Anda: ${field.label}`,
-                                    })
+                                    openLightbox(
+                                      answer.fileBase64 || "",
+                                      `Foto Anda: ${field.label}`
+                                    )
                                   }
                                   style={{
                                     width: 54,
@@ -1074,6 +1088,7 @@ export function PublicForm() {
                                     borderRadius: 6,
                                     border: "1px solid #86efac",
                                     cursor: "pointer",
+                                    background: "#f0fdf4",
                                   }}
                                   title="Klik untuk memperbesar foto layar penuh"
                                 />
@@ -1185,11 +1200,13 @@ export function PublicForm() {
                           <img
                             src={ans.fileBase64}
                             alt="Preview Foto"
+                            referrerPolicy="no-referrer"
+                            crossOrigin="anonymous"
                             onClick={() =>
-                              setActiveSampleImage({
-                                url: ans.fileBase64 || "",
-                                title: ans.fileName || `Foto: ${field.label}`,
-                              })
+                              openLightbox(
+                                ans.fileBase64 || "",
+                                ans.fileName || `Foto: ${field.label}`
+                              )
                             }
                             style={{
                               width: 88,
@@ -1199,6 +1216,7 @@ export function PublicForm() {
                               border: "1px solid #cbd5e1",
                               cursor: "pointer",
                               boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                              background: "#f1f5f9",
                             }}
                             title="Klik untuk melihat foto layar penuh"
                           />
@@ -1209,10 +1227,10 @@ export function PublicForm() {
                             <button
                               type="button"
                               onClick={() =>
-                                setActiveSampleImage({
-                                  url: ans.fileBase64 || "",
-                                  title: ans.fileName || `Foto: ${field.label}`,
-                                })
+                                openLightbox(
+                                  ans.fileBase64 || "",
+                                  ans.fileName || `Foto: ${field.label}`
+                                )
                               }
                               style={{
                                 marginTop: 4,
@@ -1471,6 +1489,7 @@ export function PublicForm() {
                 justifyContent: "center",
                 padding: "20px",
                 cursor: imageZoom > 1 ? "grab" : "zoom-in",
+                position: "relative",
               }}
               onClick={(e) => {
                 if (e.target === e.currentTarget) {
@@ -1479,27 +1498,111 @@ export function PublicForm() {
                 }
               }}
             >
-              <img
-                src={activeSampleImage.url}
-                alt={activeSampleImage.title || "Pratinjau"}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setImageZoom((prev) => (prev === 1 ? 1.6 : 1));
-                }}
-                style={{
-                  maxWidth: imageZoom === 1 ? "95vw" : "none",
-                  maxHeight: imageZoom === 1 ? "82vh" : "none",
-                  width: imageZoom > 1 ? `${imageZoom * 90}%` : "auto",
-                  objectFit: "contain",
-                  borderRadius: 10,
-                  boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)",
-                  transition: "width 0.15s ease",
-                  display: "block",
-                  margin: "auto",
-                  background: "#000000",
-                }}
-                title="Klik gambar untuk memperbesar / normal"
-              />
+              {lightboxLoading && (
+                <div
+                  style={{
+                    position: "absolute",
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                    color: "#94a3b8",
+                    fontSize: "14px",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 36,
+                      height: 36,
+                      border: "3px solid rgba(255,255,255,0.2)",
+                      borderTopColor: "#38bdf8",
+                      borderRadius: "50%",
+                      animation: "spin 0.8s linear infinite",
+                    }}
+                  />
+                  <span>Memuat foto contoh...</span>
+                </div>
+              )}
+
+              {lightboxError ? (
+                <div
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 12,
+                    padding: "24px 30px",
+                    background: "rgba(30, 41, 59, 0.95)",
+                    borderRadius: 14,
+                    border: "1px solid rgba(239, 68, 68, 0.4)",
+                    color: "#ffffff",
+                    textAlign: "center",
+                    maxWidth: 420,
+                    boxShadow: "0 20px 40px rgba(0,0,0,0.6)",
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <span style={{ fontSize: "32px" }}>📸</span>
+                  <strong style={{ fontSize: "16px", color: "#f8fafc" }}>Foto Sedang Diproses</strong>
+                  <p style={{ fontSize: "13px", color: "#cbd5e1", margin: 0, lineHeight: 1.5 }}>
+                    Jika foto tidak muncul otomatis, Anda dapat membuka dan melihat foto langsung melalui tautan di bawah.
+                  </p>
+                  <a
+                    href={activeSampleImage.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{
+                      marginTop: 8,
+                      padding: "10px 20px",
+                      background: "#0284c7",
+                      color: "#ffffff",
+                      borderRadius: 8,
+                      fontSize: "13.5px",
+                      fontWeight: 600,
+                      textDecoration: "none",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                    }}
+                  >
+                    Buka Foto di Tab Baru ↗
+                  </a>
+                </div>
+              ) : (
+                <img
+                  src={activeSampleImage.url}
+                  alt={activeSampleImage.title || "Pratinjau"}
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  onLoad={() => setLightboxLoading(false)}
+                  onError={(e) => {
+                    const currentSrc = e.currentTarget.src;
+                    const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                      e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                    } else {
+                      setLightboxLoading(false);
+                      setLightboxError(true);
+                    }
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setImageZoom((prev) => (prev === 1 ? 1.6 : 1));
+                  }}
+                  style={{
+                    maxWidth: imageZoom === 1 ? "95vw" : "none",
+                    maxHeight: imageZoom === 1 ? "82vh" : "none",
+                    width: imageZoom > 1 ? `${imageZoom * 90}%` : "auto",
+                    objectFit: "contain",
+                    borderRadius: 10,
+                    boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.15)",
+                    transition: "width 0.15s ease",
+                    display: lightboxLoading ? "none" : "block",
+                    margin: "auto",
+                  }}
+                  title="Klik gambar untuk memperbesar / normal"
+                />
+              )}
             </div>
 
             {/* Bottom Tip Bar */}
