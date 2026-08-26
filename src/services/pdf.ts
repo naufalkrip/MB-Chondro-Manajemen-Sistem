@@ -974,18 +974,20 @@ async function loadCandidatePhoto(
   // Cari jawaban yang bertipe image atau memiliki kata kunci 'foto'
   const photoAnswer = submission.answers.find(
     (a) =>
-      a.field.fieldType === "image" ||
-      a.field.label.toLowerCase().includes("pas foto") ||
-      a.field.label.toLowerCase().includes("foto") ||
-      (a.fileUrl && /\.(jpe?g|png|webp|gif)/i.test(a.fileUrl)) ||
-      (a.value && a.value.startsWith("data:image/"))
+      a.field?.fieldType === "image" ||
+      a.fileType?.startsWith("image/") ||
+      a.field?.label?.toLowerCase().includes("pas foto") ||
+      a.field?.label?.toLowerCase().includes("foto") ||
+      Boolean(a.fileName && /\.(jpe?g|png|webp|gif)$/i.test(a.fileName)) ||
+      (a.fileUrl && (a.fileUrl.startsWith("data:image/") || /\.(jpe?g|png|webp|gif)/i.test(a.fileUrl) || a.fileUrl.includes("drive.google.com") || a.fileUrl.includes("lh3"))) ||
+      (a.value && (a.value.startsWith("data:image/") || /\.(jpe?g|png|webp|gif)/i.test(a.value)))
   );
 
   if (!photoAnswer) return null;
 
   const rawSrc =
     photoAnswer.fileBase64 ||
-    (photoAnswer.value && photoAnswer.value.startsWith("data:image/") ? photoAnswer.value : null) ||
+    (photoAnswer.value && (photoAnswer.value.startsWith("data:image/") || photoAnswer.value.startsWith("http")) ? photoAnswer.value : null) ||
     photoAnswer.fileUrl;
 
   if (!rawSrc) return null;
@@ -1215,14 +1217,14 @@ async function renderCandidateSheet(
   periodLabel?: string
 ) {
   const nama =
-    submission.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value ||
+    submission.answers.find((a) => a.field?.label?.toLowerCase().includes("nama"))?.value ||
     "Calon Anggota";
   const hp =
     submission.answers.find(
       (a) =>
-        a.field.label.toLowerCase().includes("hp") ||
-        a.field.label.toLowerCase().includes("telepon") ||
-        a.field.label.toLowerCase().includes("whatsapp")
+        a.field?.label?.toLowerCase().includes("hp") ||
+        a.field?.label?.toLowerCase().includes("telepon") ||
+        a.field?.label?.toLowerCase().includes("whatsapp")
     )?.value ?? "-";
 
   const statusText =
@@ -1254,12 +1256,12 @@ async function renderCandidateSheet(
 
   const rows = submission.answers.map((a, i) => [
     i + 1,
-    a.field.label,
-    a.field.fieldType === "image" || a.field.label.toLowerCase().includes("foto")
+    a.field?.label || `Pertanyaan ${i + 1}`,
+    a.field?.fieldType === "image" || a.field?.label?.toLowerCase().includes("foto") || Boolean(a.fileUrl && (a.fileUrl.startsWith("data:image/") || a.fileUrl.includes("drive.google.com")))
       ? "✓ Pas Foto Resmi Terlampir"
-      : a.field.fieldType === "file" && a.fileUrl
+      : a.field?.fieldType === "file" && a.fileUrl
       ? a.fileName ?? "Berkas Dokumen Terlampir"
-      : a.field.fieldType === "checkbox"
+      : a.field?.fieldType === "checkbox"
       ? a.value.split(",").filter(Boolean).join(", ")
       : a.value || "-",
   ]);
@@ -1365,7 +1367,7 @@ export async function laporanRekrutmenDetail(
   }
 
   const nama =
-    submission.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value ||
+    submission.answers.find((a) => a.field?.label?.toLowerCase().includes("nama"))?.value ||
     "calon-anggota";
   doc.save(
     `Lembar-penilaian-${nama.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${new Date().toISOString().slice(0, 10)}.pdf`

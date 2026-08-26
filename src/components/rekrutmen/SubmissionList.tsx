@@ -290,8 +290,13 @@ export function SubmissionList({
     const isImage =
       ans.field?.fieldType === "image" ||
       ans.fileType?.startsWith("image/") ||
+      ans.field?.label?.toLowerCase().includes("foto") ||
+      Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
       fileUrl.startsWith("data:image/") ||
-      /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl);
+      /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) ||
+      fileUrl.includes("drive.google.com") ||
+      fileUrl.includes("lh3.googleusercontent") ||
+      fileUrl.includes("thumbnail");
 
     if (isImage) {
       setLightboxImage({
@@ -345,6 +350,8 @@ export function SubmissionList({
           (a) =>
             a.field?.fieldType === "image" ||
             a.fileType?.startsWith("image/") ||
+            a.field?.label?.toLowerCase().includes("foto") ||
+            Boolean(a.fileName && /\.(jpe?g|png|webp|gif)$/i.test(a.fileName)) ||
             (a.fileUrl && (a.fileUrl.startsWith("http") || a.fileUrl.startsWith("data:image/"))) ||
             (a.value && (a.value.startsWith("http") || a.value.startsWith("data:image/")))
         );
@@ -747,13 +754,15 @@ export function SubmissionList({
                   </label>
 
                   {/* Image / File Display */}
-                  {(ans.field?.fieldType === "image" || ans.field?.fieldType === "file" || (ans.value && (ans.value.startsWith("data:image/") || ans.value.startsWith("http")))) ? (
+                  {(ans.field?.fieldType === "image" || ans.field?.fieldType === "file" || Boolean(ans.fileUrl) || Boolean(ans.value && (ans.value.startsWith("data:image/") || ans.value.startsWith("http")))) ? (
                     (() => {
                       const fileUrl = ans.fileUrl || (ans.value && (ans.value.startsWith("data:") || ans.value.startsWith("http")) ? ans.value : null);
                       const isImg =
                         ans.field?.fieldType === "image" ||
                         ans.fileType?.startsWith("image/") ||
-                        Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("lh3.googleusercontent") || fileUrl.includes("drive.google.com")));
+                        ans.field?.label?.toLowerCase().includes("foto") ||
+                        Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
+                        Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("lh3.googleusercontent") || fileUrl.includes("drive.google.com") || fileUrl.includes("thumbnail")));
 
                       return fileUrl ? (
                         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 14 }}>
