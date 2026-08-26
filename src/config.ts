@@ -10,7 +10,7 @@
 // Lihat README.md untuk langkah-langkah deploy.
 // ============================================================
 
-export const API_URL = "https://script.google.com/macros/s/AKfycbwbuiwe6h_a5vpU_HaNxaUoGXgb3e6v67CH-bV98mSlxhdynUXcQgNWz1hWEz6XVBbw/exec";
+export const API_URL = "https://script.google.com/macros/s/AKfycbyQ_vpVHPsj2tYa_fLfWbjBleQPSyD6QQ2N5-0_ZVynv9rD5_2VCbPB-g_SrxjfY02Q/exec";
 
 // Nama sheet pada Google Spreadsheet (harus sama dengan Code.gs)
 export const SHEETS = {
