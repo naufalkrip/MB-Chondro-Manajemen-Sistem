@@ -298,23 +298,37 @@ function executeAction(action, data) {
 // SETUP SPREADSHEET (non-destruktif)
 // ============================================================
 
+var _spreadsheetInstance = null;
 function getSpreadsheet() {
-  return SpreadsheetApp.openById(SPREADSHEET_ID);
+  if (!_spreadsheetInstance) {
+    _spreadsheetInstance = SpreadsheetApp.openById(SPREADSHEET_ID);
+  }
+  return _spreadsheetInstance;
 }
 
+var _sheetCache = {};
 function getOrCreateSheet(cfg) {
+  if (_sheetCache[cfg.name]) {
+    return _sheetCache[cfg.name];
+  }
   var ss = getSpreadsheet();
   var sheet = ss.getSheetByName(cfg.name);
   if (!sheet) {
     sheet = ss.insertSheet(cfg.name);
+    ensureHeaders(sheet, cfg);
   }
-  ensureHeaders(sheet, cfg);
+  _sheetCache[cfg.name] = sheet;
   return sheet;
 }
 
 function ensureSetup() {
   for (var i = 0; i < SHEET_CONFIG.length; i++) {
-    getOrCreateSheet(SHEET_CONFIG[i]);
+    var ss = getSpreadsheet();
+    var sheet = ss.getSheetByName(SHEET_CONFIG[i].name);
+    if (!sheet) {
+      sheet = ss.insertSheet(SHEET_CONFIG[i].name);
+    }
+    ensureHeaders(sheet, SHEET_CONFIG[i]);
   }
 }
 

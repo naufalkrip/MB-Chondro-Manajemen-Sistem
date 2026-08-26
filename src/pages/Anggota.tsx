@@ -168,7 +168,7 @@ export function Anggota() {
     if (result.success) {
       toastSuccess("Data berhasil disimpan.");
       setModalMode(null);
-      await refresh();
+      void refresh(true);
     } else {
       toastError(result.message);
     }
@@ -182,7 +182,7 @@ export function Anggota() {
     if (result.success) {
       toastSuccess("Data berhasil dihapus.");
       setToDelete(null);
-      await refresh();
+      void refresh(true);
     } else {
       toastError(result.message);
     }

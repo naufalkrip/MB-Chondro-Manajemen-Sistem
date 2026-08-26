@@ -335,7 +335,7 @@ export function Absensi() {
           : "Absensi berhasil disimpan."
       );
       setFormStatus({});
-      await refresh();
+      void refresh(true);
     }
   };
 
@@ -402,7 +402,7 @@ export function Absensi() {
     } else {
       toastSuccess("Riwayat absensi berhasil diperbarui.");
       setEditSesi(null);
-      await refresh();
+      void refresh(true);
     }
   };
 
@@ -416,7 +416,7 @@ export function Absensi() {
     } else {
       toastSuccess("Riwayat absensi berhasil dihapus.");
       setToDelete(null);
-      await refresh();
+      void refresh(true);
     }
   };
 

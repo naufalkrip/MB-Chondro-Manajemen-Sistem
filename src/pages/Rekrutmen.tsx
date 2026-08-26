@@ -155,9 +155,9 @@ export function Rekrutmen() {
         toastSuccess("Formulir pendaftaran berhasil disimpan.");
       }
       setModalMode(null);
-      await refreshForm();
-      await refreshSubs();
-      await refreshStats();
+      void refreshForm(true);
+      void refreshSubs(true);
+      void refreshStats(true);
     }
     return ok;
   };
@@ -169,7 +169,7 @@ export function Rekrutmen() {
     const res = await addRekrutmenFieldItem({ ...field, formId: form.id });
     if (res.success) {
       toastSuccess("Pertanyaan berhasil ditambahkan.");
-      await refreshForm();
+      void refreshForm(true);
       return true;
     }
     toastError(res.message || "Gagal menambahkan pertanyaan.");
@@ -183,7 +183,7 @@ export function Rekrutmen() {
     const res = await updateRekrutmenFieldItem(id, field);
     if (res.success) {
       toastSuccess("Pertanyaan berhasil diperbarui.");
-      await refreshForm();
+      void refreshForm(true);
       return true;
     }
     toastError(res.message || "Gagal memperbarui pertanyaan.");
@@ -194,7 +194,7 @@ export function Rekrutmen() {
     const res = await deleteRekrutmenFieldItem(id);
     if (res.success) {
       toastSuccess("Pertanyaan berhasil dihapus.");
-      await refreshForm();
+      void refreshForm(true);
       return true;
     }
     toastError(res.message || "Gagal menghapus pertanyaan.");
@@ -207,7 +207,7 @@ export function Rekrutmen() {
     if (!form) return false;
     const result = await reorderRekrutmenFieldsItem(form.id, fieldOrders);
     if (result.success) {
-      await refreshForm();
+      void refreshForm(true);
       return true;
     }
     toastError(result.message || "Gagal mengubah urutan pertanyaan.");
@@ -221,8 +221,8 @@ export function Rekrutmen() {
   ): Promise<boolean> => {
     const result = await updateRekrutmenSubmissionItem(id, { status, adminNote: note });
     if (result.success) {
-      await refreshSubs();
-      await refreshStats();
+      void refreshSubs(true);
+      void refreshStats(true);
       return true;
     }
     toastError(result.message || "Gagal memperbarui status pendaftar.");
@@ -232,8 +232,8 @@ export function Rekrutmen() {
   const handleSubmissionDelete = async (id: string): Promise<boolean> => {
     const result = await deleteRekrutmenSubmissionItem(id);
     if (result.success) {
-      await refreshSubs();
-      await refreshStats();
+      void refreshSubs(true);
+      void refreshStats(true);
       return true;
     }
     toastError(result.message || "Gagal menghapus data pendaftar.");

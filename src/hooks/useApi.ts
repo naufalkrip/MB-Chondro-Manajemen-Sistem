@@ -26,7 +26,7 @@ export function useApi<T>(
   fetcher: () => Promise<T>,
   errorMessage = "Gagal mengambil data.",
   cacheKey?: string,
-  options: UseApiOptions = { pollingInterval: 25000, revalidateOnFocus: true }
+  options: UseApiOptions = { pollingInterval: 12000, revalidateOnFocus: true }
 ): UseApiResult<T> {
   const cached = useMemo(() => (cacheKey ? cacheGet<T>(cacheKey) : null), [cacheKey]);
   const [data, setData] = useState<T | null>(cached);
