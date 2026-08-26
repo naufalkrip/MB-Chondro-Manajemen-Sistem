@@ -919,8 +919,194 @@ export async function laporanTransaksi(
 }
 
 // ============================================================
-// ELEMEN KHUSUS REKRUTMEN: KOTAK KEPUTUSAN & PENILAIAN SELEKSI
+// ELEMEN KHUSUS REKRUTMEN: FOTO & PENILAIAN SELEKSI
 // ============================================================
+
+function normalizeImageUrl(url: string): string {
+  if (!url) return url;
+  if (url.startsWith("data:image/")) return url;
+  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match && match[1]) {
+    return `https://lh3.googleusercontent.com/d/${match[1]}`;
+  }
+  return url;
+}
+
+function fetchImageAsDataUrl(src: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const cleanSrc = normalizeImageUrl(src);
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    const timer = setTimeout(() => {
+      resolve(null);
+    }, 4000);
+
+    img.onload = () => {
+      clearTimeout(timer);
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = img.naturalWidth || 300;
+        canvas.height = img.naturalHeight || 400;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          resolve(null);
+          return;
+        }
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL("image/jpeg", 0.88));
+      } catch {
+        resolve(null);
+      }
+    };
+
+    img.onerror = () => {
+      clearTimeout(timer);
+      resolve(null);
+    };
+
+    img.src = cleanSrc;
+  });
+}
+
+async function loadCandidatePhoto(
+  submission: RekrutmenSubmissionWithAnswers
+): Promise<{ dataUrl: string; format: "JPEG" | "PNG" } | null> {
+  // Cari jawaban yang bertipe image atau memiliki kata kunci 'foto'
+  const photoAnswer = submission.answers.find(
+    (a) =>
+      a.field.fieldType === "image" ||
+      a.field.label.toLowerCase().includes("pas foto") ||
+      a.field.label.toLowerCase().includes("foto") ||
+      (a.fileUrl && /\.(jpe?g|png|webp|gif)/i.test(a.fileUrl)) ||
+      (a.value && a.value.startsWith("data:image/"))
+  );
+
+  if (!photoAnswer) return null;
+
+  const rawSrc =
+    photoAnswer.fileBase64 ||
+    (photoAnswer.value && photoAnswer.value.startsWith("data:image/") ? photoAnswer.value : null) ||
+    photoAnswer.fileUrl;
+
+  if (!rawSrc) return null;
+
+  if (rawSrc.startsWith("data:image/")) {
+    const isPng = rawSrc.startsWith("data:image/png");
+    return { dataUrl: rawSrc, format: isPng ? "PNG" : "JPEG" };
+  }
+
+  try {
+    const dataUrl = await fetchImageAsDataUrl(rawSrc);
+    if (dataUrl) {
+      return { dataUrl, format: "JPEG" };
+    }
+  } catch {
+    // Fallback jika fetch gambar eksternal gagal
+  }
+
+  return null;
+}
+
+function drawPhotoPlaceholder(doc: jsPDF, x: number, y: number, w: number, h: number) {
+  doc.setFillColor(...ROW_ALT);
+  doc.setDrawColor(...LINE);
+  doc.setLineWidth(0.3);
+  doc.rect(x, y, w, h, "FD");
+
+  // Bingkai putus-putus
+  doc.setDrawColor(...SLATE);
+  doc.setLineWidth(0.2);
+  doc.setLineDashPattern([1.5, 1.5], 0);
+  doc.rect(x + 1.5, y + 1.5, w - 3, h - 3, "D");
+  doc.setLineDashPattern([], 0);
+
+  doc.setFont(fontFamily, "normal");
+  doc.setFontSize(7.5);
+  doc.setTextColor(...SLATE);
+  doc.text("PAS FOTO", x + w / 2, y + h / 2 - 2, { align: "center" });
+  doc.setFontSize(6.5);
+  doc.text("3 x 4 cm", x + w / 2, y + h / 2 + 2.5, { align: "center" });
+}
+
+async function drawCandidateSummaryWithPhoto(
+  doc: jsPDF,
+  items: SummaryItem[],
+  submission: RekrutmenSubmissionWithAnswers,
+  startY: number
+): Promise<number> {
+  const w = doc.internal.pageSize.getWidth();
+  const leftX = MARGIN;
+  const photoW = 32;
+  const photoH = 42;
+  const photoMarginRight = MARGIN;
+  const photoX = w - photoMarginRight - photoW;
+  const summaryW = photoX - leftX - 5;
+  const boxH = Math.max(photoH, items.length * 9.5 + 4);
+
+  // 1. Kotak Summary Informasi Calon di Sisi Kiri
+  const itemH = (boxH - (items.length - 1) * 2.5) / items.length;
+  for (let i = 0; i < items.length; i++) {
+    const it = items[i];
+    const iy = startY + i * (itemH + 2.5);
+
+    doc.setFillColor(...ROW_ALT);
+    doc.setDrawColor(...LINE);
+    doc.setLineWidth(0.25);
+    doc.roundedRect(leftX, iy, summaryW, itemH, 1.2, 1.2, "FD");
+
+    // Aksen merah MB Chondro di sisi kiri item
+    doc.setFillColor(...BURGUNDY);
+    doc.roundedRect(leftX, iy + 0.5, 1.3, itemH - 1, 0.6, 0.6, "F");
+
+    // Label
+    doc.setFont(fontFamily, "normal");
+    doc.setFontSize(7.5);
+    doc.setTextColor(...SLATE);
+    doc.text(it.label, leftX + 5, iy + itemH / 2 - 1.2);
+
+    // Value
+    doc.setFont(fontFamily, semiboldStyle());
+    doc.setFontSize(8.5);
+    doc.setTextColor(...NAVY);
+    const valText = doc.splitTextToSize(it.value, summaryW - 12)[0] || it.value;
+    doc.text(valText, leftX + 5, iy + itemH / 2 + 3.2);
+  }
+
+  // 2. Kotak Pas Foto Calon Anggota di Sisi Kanan
+  const photoY = startY;
+  const photo = await loadCandidatePhoto(submission);
+
+  if (photo) {
+    try {
+      // Background putih
+      doc.setFillColor(255, 255, 255);
+      doc.setDrawColor(...LINE);
+      doc.setLineWidth(0.3);
+      doc.rect(photoX - 0.5, photoY - 0.5, photoW + 1, photoH + 1, "FD");
+
+      // Embed Foto Calon Anggota
+      doc.addImage(photo.dataUrl, photo.format, photoX, photoY, photoW, photoH);
+
+      // Frame Border Foto
+      doc.setDrawColor(...BURGUNDY);
+      doc.setLineWidth(0.35);
+      doc.rect(photoX, photoY, photoW, photoH, "D");
+
+      // Keterangan di bawah foto
+      doc.setFont(fontFamily, "normal");
+      doc.setFontSize(6.5);
+      doc.setTextColor(...SLATE);
+      doc.text("Foto Calon Anggota", photoX + photoW / 2, photoY + photoH + 3.2, { align: "center" });
+    } catch {
+      drawPhotoPlaceholder(doc, photoX, photoY, photoW, photoH);
+    }
+  } else {
+    drawPhotoPlaceholder(doc, photoX, photoY, photoW, photoH);
+  }
+
+  return startY + boxH + 6;
+}
+
 function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
   const w = doc.internal.pageSize.getWidth();
   const pageH = doc.internal.pageSize.getHeight();
@@ -1020,7 +1206,7 @@ function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
 }
 
 /**
- * Render 1 lembar khusus untuk 1 calon anggota baru (F4 Portrait)
+ * Render 1 lembar khusus untuk 1 calon anggota baru (F4 Portrait) lengkap dengan Pas Foto
  */
 async function renderCandidateSheet(
   doc: jsPDF,
@@ -1053,23 +1239,26 @@ async function renderCandidateSheet(
 
   let startY = await drawFullHeader(doc, "BIODATA & PENILAIAN CALON ANGGOTA", subtitle, periode);
 
-  // Summary ringkas calon anggota
-  startY = drawSummary(
+  // Summary ringkas calon anggota dengan Pas Foto di sisi kanan
+  startY = await drawCandidateSummaryWithPhoto(
     doc,
     [
       { label: "Nama Calon Anggota", value: nama },
       { label: "No. WhatsApp / HP", value: hp },
-      { label: "Tanggal Daftar", value: formatTanggal(submission.submittedAt) },
+      { label: "Tanggal Pendaftaran", value: formatTanggal(submission.submittedAt) },
       { label: "Status Seleksi", value: statusText },
     ],
+    submission,
     startY
   );
 
   const rows = submission.answers.map((a, i) => [
     i + 1,
     a.field.label,
-    (a.field.fieldType === "file" || a.field.fieldType === "image") && a.fileUrl
-      ? a.fileName ?? "Berkas / Foto Terlampir"
+    a.field.fieldType === "image" || a.field.label.toLowerCase().includes("foto")
+      ? "✓ Pas Foto Resmi Terlampir"
+      : a.field.fieldType === "file" && a.fileUrl
+      ? a.fileName ?? "Berkas Dokumen Terlampir"
       : a.field.fieldType === "checkbox"
       ? a.value.split(",").filter(Boolean).join(", ")
       : a.value || "-",

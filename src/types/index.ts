@@ -159,6 +159,7 @@ export interface RekrutmenAnswer {
   fieldId: string;
   value: string;
   fileUrl: string | null;
+  fileBase64?: string | null;
   fileName: string | null;
   fileType: string | null;
   fileSize: number | null;
