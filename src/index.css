@@ -4964,6 +4964,7 @@ body,
    ============================================================ */
 
 .login-page-container {
+  min-height: 100dvh;
   min-height: 100vh;
   width: 100%;
   display: flex;
@@ -4976,7 +4977,8 @@ body,
     radial-gradient(at 90% 80%, rgba(15, 23, 42, 0.04) 0px, transparent 50%),
     radial-gradient(at 50% 50%, rgba(241, 245, 249, 0.8) 0px, transparent 100%);
   position: relative;
-  overflow: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .login-bg-shape-1 {
@@ -5013,6 +5015,7 @@ body,
   padding: 36px 32px 30px;
   display: flex;
   flex-direction: column;
+  margin: auto 0;
 }
 
 .login-header {
@@ -5134,15 +5137,16 @@ body,
 
 .login-input {
   width: 100%;
-  height: 44px;
+  height: 46px;
   padding: 0 42px 0 42px;
   background: #f8fafc;
   border: 1px solid #cbd5e1;
   border-radius: 10px;
-  font-size: 13.5px;
+  font-size: 14px;
   color: #0f172a;
   outline: none;
   transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
 .login-input:focus {
@@ -5158,10 +5162,10 @@ body,
 
 .login-password-toggle {
   position: absolute;
-  right: 12px;
+  right: 10px;
   background: transparent;
   border: none;
-  padding: 4px;
+  padding: 8px;
   color: #94a3b8;
   cursor: pointer;
   display: flex;
@@ -5169,6 +5173,7 @@ body,
   justify-content: center;
   border-radius: 6px;
   transition: color 0.15s ease;
+  touch-action: manipulation;
 }
 
 .login-password-toggle:hover {
@@ -5176,12 +5181,12 @@ body,
 }
 
 .login-submit-btn {
-  height: 44px;
+  height: 46px;
   background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #b91c1c 100%);
   color: #ffffff;
   border: none;
   border-radius: 10px;
-  font-size: 13.5px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
   display: flex;
@@ -5191,6 +5196,7 @@ body,
   margin-top: 6px;
   box-shadow: 0 4px 14px rgba(185, 28, 28, 0.25);
   transition: all 0.2s ease;
+  touch-action: manipulation;
 }
 
 .login-submit-btn:hover:not(:disabled) {
@@ -5257,9 +5263,32 @@ body,
   color: #94a3b8;
 }
 
+/* ---------------- MOBILE INPUT FOCUS & SCROLL LOCK FIX ---------------- */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea,
+  .login-input,
+  .form-control,
+  .search-input {
+    font-size: 16px !important; /* Prevents iOS Safari auto-zoom viewport lock */
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
 @media (max-width: 480px) {
+  .login-page-container {
+    padding: 16px 12px;
+  }
   .login-card-wrapper {
-    padding: 28px 20px 24px;
+    padding: 28px 18px 22px;
     border-radius: 16px;
   }
   .login-title {

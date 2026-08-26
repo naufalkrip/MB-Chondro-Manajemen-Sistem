@@ -99,7 +99,6 @@ export function Login() {
                   if (error) setError(null);
                 }}
                 disabled={isSubmitting}
-                autoFocus
                 autoComplete="username"
               />
             </div>
