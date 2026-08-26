@@ -80,13 +80,6 @@ export function Rekrutmen() {
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
   const [savingForm, setSavingForm] = useState(false);
 
-  // Set default initial tab based on whether applicants exist
-  useEffect(() => {
-    if (submissions && submissions.length > 0) {
-      setActiveTab("submissions");
-    }
-  }, [submissions]);
-
   useEffect(() => {
     if (form) {
       setFormData({

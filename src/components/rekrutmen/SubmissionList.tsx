@@ -340,22 +340,34 @@ export function SubmissionList({
       key: "nama",
       header: "Nama Calon Anggota",
       render: (s) => {
-        const namaField = s.answers.find((a) => a.field.label.toLowerCase().includes("nama"));
+        const namaField = s.answers.find((a) => a.field?.label?.toLowerCase().includes("nama"));
         const fotoField = s.answers.find(
           (a) =>
-            (a.field.fieldType === "image" || a.field.fieldType === "file") &&
-            a.fileUrl &&
-            a.fileType?.startsWith("image/")
+            a.field?.fieldType === "image" ||
+            a.fileType?.startsWith("image/") ||
+            (a.fileUrl && (a.fileUrl.startsWith("http") || a.fileUrl.startsWith("data:image/"))) ||
+            (a.value && (a.value.startsWith("http") || a.value.startsWith("data:image/")))
         );
+        const fotoUrl = fotoField?.fileUrl || (fotoField?.value && (fotoField.value.startsWith("http") || fotoField.value.startsWith("data:image/")) ? fotoField.value : null);
+
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {fotoField?.fileUrl ? (
+            {fotoUrl ? (
               <img
-                src={fotoField.fileUrl}
+                src={fotoUrl}
                 alt="Foto"
+                referrerPolicy="no-referrer"
+                crossOrigin="anonymous"
+                onError={(e) => {
+                  const currentSrc = e.currentTarget.src;
+                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                  }
+                }}
                 onClick={(e) => {
                   e.stopPropagation();
-                  setLightboxImage({ url: fotoField.fileUrl || "", title: namaField?.value || "Foto" });
+                  setLightboxImage({ url: fotoUrl, title: namaField?.value || "Foto Calon Anggota" });
                 }}
                 style={{
                   width: 34,
@@ -364,6 +376,7 @@ export function SubmissionList({
                   objectFit: "cover",
                   border: "1px solid #cbd5e1",
                   cursor: "pointer",
+                  background: "#f1f5f9",
                 }}
                 title="Klik untuk melihat foto"
               />
@@ -741,7 +754,7 @@ export function SubmissionList({
                       const isImg =
                         ans.field?.fieldType === "image" ||
                         ans.fileType?.startsWith("image/") ||
-                        Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl)));
+                        Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("lh3.googleusercontent") || fileUrl.includes("drive.google.com")));
 
                       return fileUrl ? (
                         <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 14 }}>
@@ -758,6 +771,15 @@ export function SubmissionList({
                               <img
                                 src={fileUrl}
                                 alt="Berkas"
+                                referrerPolicy="no-referrer"
+                                crossOrigin="anonymous"
+                                onError={(e) => {
+                                  const currentSrc = e.currentTarget.src;
+                                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                                  }
+                                }}
                                 style={{
                                   width: 100,
                                   height: 75,
@@ -765,6 +787,7 @@ export function SubmissionList({
                                   borderRadius: 8,
                                   border: "1px solid #cbd5e1",
                                   boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
+                                  background: "#f1f5f9",
                                 }}
                                 title="Klik untuk memperbesar foto"
                               />
@@ -1202,11 +1225,20 @@ export function SubmissionList({
                   </button>
                 </div>
               </div>
-              <div style={{ padding: 16, textAlign: "center", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <div style={{ padding: 16, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center" }}>
                 <img
                   src={lightboxImage.url}
                   alt="Foto Calon"
-                  style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}
+                  referrerPolicy="no-referrer"
+                  crossOrigin="anonymous"
+                  onError={(e) => {
+                    const currentSrc = e.currentTarget.src;
+                    const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
+                    if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
+                      e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+                    }
+                  }}
+                  style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.5)" }}
                 />
               </div>
             </div>
