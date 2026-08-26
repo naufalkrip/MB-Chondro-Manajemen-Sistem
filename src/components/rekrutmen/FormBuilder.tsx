@@ -164,8 +164,8 @@ export function FormBuilder({
         ? fieldForm.options.filter((o) => o.value.trim() || o.label.trim())
         : [],
       sortOrder: editingField ? editingField.sortOrder : sortedFields.length + 1,
-      exampleImageUrl: isUpload ? fieldForm.exampleImageUrl.trim() : "",
-      exampleImageTitle: isUpload ? fieldForm.exampleImageTitle.trim() : "",
+      exampleImageUrl: fieldForm.exampleImageUrl.trim(),
+      exampleImageTitle: fieldForm.exampleImageTitle.trim(),
       maxFileSize: isUpload ? (fieldForm.maxFileSize || (fieldForm.fieldType === "image" ? 2 : 5)) : undefined,
       allowedFileTypes:
         fieldForm.fieldType === "image"
@@ -1076,10 +1076,34 @@ export function FormBuilder({
               </div>
 
               {/* Upload Gambar Contoh Instruksi */}
-              <div className="form-group" style={{ gap: 6 }}>
-                <label style={{ fontSize: "12.5px", fontWeight: 600 }}>
-                  Gambar Contoh / Petunjuk Visual (Opsional)
-                </label>
+              <div
+                style={{
+                  background: "#ffffff",
+                  padding: "14px",
+                  borderRadius: "var(--radius-xs, 6px)",
+                  border: "1px solid var(--border, #e2e8f0)",
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 10,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <label style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--navy-900)" }}>
+                    🖼️ Gambar Contoh / Panduan Visual (Opsional)
+                  </label>
+                  {fieldForm.exampleImageUrl && (
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => setFieldForm((p) => ({ ...p, exampleImageUrl: "" }))}
+                      style={{ color: "#dc2626", fontSize: "12px", padding: "2px 6px" }}
+                    >
+                      <Trash2 size={13} /> Hapus Foto
+                    </button>
+                  )}
+                </div>
+
+                {/* Input Pilihan: Unggah atau URL */}
                 <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                   <label
                     className="btn btn-outline btn-sm"
@@ -1088,52 +1112,43 @@ export function FormBuilder({
                       display: "inline-flex",
                       alignItems: "center",
                       gap: 6,
+                      fontSize: "12.5px",
                       opacity: compressingImage ? 0.6 : 1,
                     }}
                   >
-                    <Upload size={14} /> {compressingImage ? "Memproses Gambar..." : "Unggah Gambar Contoh"}
+                    <Upload size={14} /> {compressingImage ? "Mengompresi Gambar..." : "Unggah Gambar dari Perangkat"}
                     <input
                       type="file"
-                      accept="image/*"
+                      accept="image/jpeg,image/png,image/webp,image/jpg"
                       disabled={compressingImage}
+                      onClick={(e) => {
+                        (e.currentTarget as HTMLInputElement).value = "";
+                      }}
                       onChange={handleExampleImageUpload}
                       style={{ display: "none" }}
                     />
                   </label>
-                  {fieldForm.exampleImageUrl && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setFieldForm((p) => ({ ...p, exampleImageUrl: "", exampleImageTitle: "" }))}
-                      style={{ color: "#dc2626", fontSize: "12px" }}
-                    >
-                      <Trash2 size={14} /> Hapus Gambar Contoh
-                    </button>
-                  )}
-                </div>
-
-                {/* Atau input URL gambar */}
-                <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 4 }}>
-                  <input
-                    value={fieldForm.exampleImageUrl.startsWith("data:image/") ? "(Gambar terunggah dan terkompresi)" : fieldForm.exampleImageUrl}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      if (!val.startsWith("(Gambar terunggah")) {
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>atau</span>
+                  <div style={{ flex: 1, minWidth: 200 }}>
+                    <input
+                      value={fieldForm.exampleImageUrl.startsWith("data:image/") ? "" : fieldForm.exampleImageUrl}
+                      onChange={(e) => {
+                        const val = e.target.value;
                         setFieldForm((p) => ({ ...p, exampleImageUrl: val }));
-                      }
-                    }}
-                    placeholder="Atau tempel link gambar (https://...)"
-                    style={{ flex: 1, height: 36, padding: "6px 10px", fontSize: "12.5px" }}
-                  />
+                      }}
+                      placeholder="Tempel tautan URL gambar (https://...)"
+                      style={{ width: "100%", height: 34, padding: "4px 10px", fontSize: "12.5px", boxSizing: "border-box" }}
+                    />
+                  </div>
                 </div>
 
                 {/* Preview Gambar Contoh jika ada */}
                 {fieldForm.exampleImageUrl && (
                   <div
                     style={{
-                      marginTop: 8,
+                      marginTop: 4,
                       padding: 10,
-                      background: "#ffffff",
+                      background: "var(--bg, #f8fafc)",
                       borderRadius: 8,
                       border: "1px solid #e2e8f0",
                       display: "flex",
@@ -1143,23 +1158,24 @@ export function FormBuilder({
                   >
                     <img
                       src={fieldForm.exampleImageUrl}
-                      alt="Contoh"
+                      alt="Contoh yang benar"
                       style={{
-                        width: 80,
-                        height: 60,
+                        width: 76,
+                        height: 56,
                         objectFit: "cover",
                         borderRadius: 6,
                         border: "1px solid #cbd5e1",
+                        background: "#ffffff",
                       }}
                     />
-                    <div>
+                    <div style={{ flex: 1 }}>
                       <strong style={{ fontSize: "12.5px", display: "block", color: "var(--navy-900)" }}>
-                        {fieldForm.exampleImageTitle || "Gambar Contoh Terpasang"}
+                        {fieldForm.exampleImageTitle || "Contoh Foto / Lampiran Visual"}
                       </strong>
-                      <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
+                      <span style={{ fontSize: "11.5px", color: "#059669", display: "block", marginTop: 2 }}>
                         {fieldForm.exampleImageUrl.startsWith("data:image/")
-                          ? "✓ Gambar berhasil dioptimasi & aman untuk disimpan."
-                          : "Gambar URL eksternal terpasang."}
+                          ? "✓ Foto berhasil diunggah & siap disimpan ke formulir."
+                          : "✓ Tautan foto terpasang."}
                       </span>
                     </div>
                   </div>

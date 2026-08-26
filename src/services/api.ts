@@ -748,13 +748,13 @@ function normRekrutmenField(item: Record<string, unknown>): RekrutmenField {
 
   const rawExImg = item.exampleImageUrl ? String(item.exampleImageUrl).trim() : "";
   const exImg =
-    isUpload && rawExImg && rawExImg !== "undefined" && rawExImg !== "null" && (rawExImg.startsWith("data:image/") || rawExImg.startsWith("http"))
+    rawExImg && rawExImg !== "undefined" && rawExImg !== "null" && (rawExImg.startsWith("data:image/") || rawExImg.startsWith("http") || rawExImg.startsWith("//") || rawExImg.startsWith("blob:"))
       ? rawExImg
       : undefined;
 
   const rawExTitle = item.exampleImageTitle ? String(item.exampleImageTitle).trim() : "";
   const exTitle =
-    isUpload && rawExTitle && rawExTitle !== "undefined" && rawExTitle !== "null"
+    rawExTitle && rawExTitle !== "undefined" && rawExTitle !== "null"
       ? rawExTitle
       : undefined;
 
