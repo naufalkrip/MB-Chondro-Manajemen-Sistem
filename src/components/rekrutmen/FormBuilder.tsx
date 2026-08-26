@@ -18,6 +18,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import type { RekrutmenField, RekrutmenForm, RekrutmenFieldType, RekrutmenFieldOption } from "../../types";
+import { uploadRekrutmenImageItem, fileToBase64 } from "../../services/api";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
@@ -238,55 +239,6 @@ export function FormBuilder({
 
   const [compressingImage, setCompressingImage] = useState(false);
 
-  const compressImageToSafeBase64 = (file: File, maxChars = 32000): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
-      reader.onload = (ev) => {
-        const img = new Image();
-        img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
-        img.onload = () => {
-          let maxDim = 360;
-          let quality = 0.7;
-          const canvas = document.createElement("canvas");
-          const ctx = canvas.getContext("2d");
-          if (!ctx) {
-            return resolve(ev.target?.result as string);
-          }
-
-          let result = "";
-          for (let attempt = 0; attempt < 5; attempt++) {
-            let width = img.width;
-            let height = img.height;
-            if (width > maxDim || height > maxDim) {
-              if (width > height) {
-                height = Math.round((height * maxDim) / width);
-                width = maxDim;
-              } else {
-                width = Math.round((width * maxDim) / height);
-                height = maxDim;
-              }
-            }
-            canvas.width = width;
-            canvas.height = height;
-            ctx.clearRect(0, 0, width, height);
-            ctx.drawImage(img, 0, 0, width, height);
-            result = canvas.toDataURL("image/jpeg", quality);
-
-            if (result.length <= maxChars) {
-              break;
-            }
-            maxDim = Math.round(maxDim * 0.75);
-            quality = Math.max(0.35, quality - 0.15);
-          }
-          resolve(result);
-        };
-        img.src = ev.target?.result as string;
-      };
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleExampleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -296,15 +248,29 @@ export function FormBuilder({
       }
       try {
         setCompressingImage(true);
-        const compressed = await compressImageToSafeBase64(file);
-        setFieldForm((p) => ({
-          ...p,
-          exampleImageUrl: compressed,
-          exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
-        }));
+        // Baca file gambar asli kualitas penuh tanpa penurunan resolusi
+        const rawBase64 = await fileToBase64(file);
+
+        // Unggah langsung file resolusi tinggi ke server / Google Drive
+        const uploadRes = await uploadRekrutmenImageItem(rawBase64, file.name);
+
+        if (uploadRes.success && uploadRes.data?.url) {
+          setFieldForm((p) => ({
+            ...p,
+            exampleImageUrl: uploadRes.data!.url,
+            exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
+          }));
+        } else {
+          // Fallback jika API unggah gagal
+          setFieldForm((p) => ({
+            ...p,
+            exampleImageUrl: rawBase64,
+            exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
+          }));
+        }
       } catch (err) {
-        console.error("Gagal memproses gambar:", err);
-        alert("Gagal memproses gambar. Silakan coba file gambar lain.");
+        console.error("Gagal memproses gambar resolusi tinggi:", err);
+        alert("Gagal memproses gambar. Silakan coba lagi.");
       } finally {
         setCompressingImage(false);
       }

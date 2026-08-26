@@ -258,6 +258,8 @@ function executeAction(action, data) {
       return deleteRekrutmenField(data);
     case "reorderRekrutmenFields":
       return reorderRekrutmenFields(data.formId, data.fieldOrders);
+    case "uploadRekrutmenImage":
+      return uploadRekrutmenImage(data);
 
     // Rekrutmen Submissions
     case "getRekrutmenSubmissions":
@@ -1490,6 +1492,40 @@ function reorderRekrutmenFields(formId, fieldOrders) {
   return { message: "Urutan berhasil diperbarui." };
 }
 
+function uploadRekrutmenImage(data) {
+  if (!data || !data.base64) throw new Error("Data gambar wajib dikirim.");
+  var rawBase64 = String(data.base64);
+  var mimeType = "image/jpeg";
+  var fileName = data.fileName || ("panduan_" + new Date().getTime() + ".jpg");
+
+  if (rawBase64.indexOf("data:") === 0) {
+    var parts = rawBase64.split(",");
+    var match = parts[0].match(/:(.*?);/);
+    if (match) mimeType = match[1];
+    rawBase64 = parts[1];
+  }
+
+  var bytes = Utilities.base64Decode(rawBase64);
+  var blob = Utilities.newBlob(bytes, mimeType, fileName);
+
+  var folderName = "MB Chondro Rekrutmen Assets";
+  var folders = DriveApp.getFoldersByName(folderName);
+  var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder(folderName);
+
+  var file = folder.createFile(blob);
+  file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+  var fileId = file.getId();
+
+  var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+
+  return {
+    fileId: fileId,
+    url: directUrl,
+    name: fileName,
+    message: "Foto berhasil diunggah ke Google Drive dengan kualitas penuh."
+  };
+}
+
 // ---------------- REKRUITMEN SUBMISSIONS & ANSWERS ----------------
 
 function getRekrutmenSubmissions(formId) {
@@ -1621,13 +1657,37 @@ function addRekrutmenSubmission(data) {
   if (Array.isArray(answers) && answers.length > 0) {
     var ansCfg = getSheetConfig("REKRUITMEN_ANSWERS");
     var ansSheet = ss.getSheetByName(ansCfg.name);
+    var driveFolder = null;
+
     for (var i = 0; i < answers.length; i++) {
       var item = answers[i];
       var ansId = generateId(ansCfg);
-      var fileUrl = String(item.fileUrl || "");
-      if (fileUrl.length > 48000) {
+      var fileUrl = String(item.fileUrl || item.fileBase64 || "");
+
+      // Jika file berupa Base64 (upload foto/dokumen calon anggota), simpan otomatis ke Google Drive
+      if (fileUrl.indexOf("data:") === 0) {
+        try {
+          if (!driveFolder) {
+            var fName = "MB Chondro Berkas Pendaftar";
+            var fList = DriveApp.getFoldersByName(fName);
+            driveFolder = fList.hasNext() ? fList.next() : DriveApp.createFolder(fName);
+          }
+          var parts = fileUrl.split(",");
+          var mime = "image/jpeg";
+          var mMatch = parts[0].match(/:(.*?);/);
+          if (mMatch) mime = mMatch[1];
+          var fBytes = Utilities.base64Decode(parts[1]);
+          var fBlob = Utilities.newBlob(fBytes, mime, String(item.fileName || ("berkas_" + ansId + ".jpg")));
+          var dFile = driveFolder.createFile(fBlob);
+          dFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+          fileUrl = "https://lh3.googleusercontent.com/d/" + dFile.getId();
+        } catch (e) {
+          if (fileUrl.length > 48000) fileUrl = fileUrl.substring(0, 48000);
+        }
+      } else if (fileUrl.length > 48000) {
         fileUrl = fileUrl.substring(0, 48000);
       }
+
       var ansRow = [
         ansId,
         subId,

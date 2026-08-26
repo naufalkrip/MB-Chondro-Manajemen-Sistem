@@ -933,8 +933,44 @@ export const addRekrutmenSubmissionItem = addRekrutmenSubmission;
 export const updateRekrutmenSubmissionItem = updateRekrutmenSubmission;
 export const deleteRekrutmenSubmissionItem = deleteRekrutmenSubmission;
 export const getRekrutmenSubmissionDetailData = getRekrutmenSubmissionDetail;
-
 export const getRekrutmenStatsData = getRekrutmenStats;
+
+export function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (err) => reject(err);
+    reader.readAsDataURL(file);
+  });
+}
+
+export async function uploadRekrutmenImageItem(
+  base64OrFile: string | File,
+  fileName?: string
+): Promise<ApiResult<{ url: string; fileId?: string }>> {
+  try {
+    let base64 = "";
+    let name = fileName || "foto_panduan.jpg";
+
+    if (typeof base64OrFile === "string") {
+      base64 = base64OrFile;
+    } else {
+      name = base64OrFile.name;
+      base64 = await fileToBase64(base64OrFile);
+    }
+
+    const result = await request<{ url: string; fileId?: string }>("uploadRekrutmenImage", {
+      base64,
+      fileName: name,
+    });
+    return { success: true, data: result };
+  } catch (e) {
+    return {
+      success: false,
+      message: e instanceof Error ? e.message : "Gagal mengunggah foto ke server.",
+    };
+  }
+}
 
 // ---------------- DASHBOARD ----------------
 
