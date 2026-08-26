@@ -1582,25 +1582,28 @@ function uploadRekrutmenImage(data) {
 function resolveCandidateAnswerPhoto(ans) {
   if (!ans) return ans;
   var fileUrl = String(ans.fileUrl || "");
-  var fileName = String(ans.fileName || ans.value || "");
-  var isImgAnswer = (ans.field && ans.field.fieldType === "image") ||
-                    (ans.field && String(ans.field.label || "").toLowerCase().indexOf("foto") >= 0) ||
-                    fileName.match(/\.(jpe?g|png|webp|gif)$/i) ||
-                    fileUrl.indexOf("data:image/") === 0 ||
-                    fileUrl.indexOf("drive.google.com") >= 0 ||
-                    fileUrl.indexOf("lh3.googleusercontent") >= 0;
+  var valueStr = String(ans.value || "");
+  var fileName = String(ans.fileName || "");
 
-  if (!isImgAnswer) return ans;
-
-  // Jika sudah berupa Data URL yang valid dan utuh (bukan string potong < 1000 karakter)
+  // 1. Jika sudah berupa Data URL yang valid dan utuh (> 2000 karakter)
   if (fileUrl.indexOf("data:image/") === 0 && fileUrl.length > 2000) {
     return ans;
   }
+  if (valueStr.indexOf("data:image/") === 0 && valueStr.length > 2000) {
+    ans.fileUrl = valueStr;
+    return ans;
+  }
 
-  // 1. Coba ambil dari fileId jika URL berupa link Google Drive
+  // 2. Cari fileId dari semua kemungkinan string URL
+  var sources = [fileUrl, valueStr];
   var fileId = "";
-  var match = fileUrl.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
-  if (match) fileId = match[1];
+  for (var s = 0; s < sources.length; s++) {
+    var match = sources[s].match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+    if (match) {
+      fileId = match[1];
+      break;
+    }
+  }
 
   if (fileId) {
     try {
@@ -1608,7 +1611,7 @@ function resolveCandidateAnswerPhoto(ans) {
       if (file) {
         var blob = file.getBlob();
         var bytes = blob.getBytes();
-        if (bytes.length <= 3500000) {
+        if (bytes.length <= 4000000) {
           ans.fileUrl = "data:" + (blob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes);
           return ans;
         }
@@ -1616,21 +1619,41 @@ function resolveCandidateAnswerPhoto(ans) {
     } catch (e) {}
   }
 
-  // 2. Coba cari di folder 'MB Chondro Berkas Pendaftar' berdasarkan fileName
-  if (fileName && fileName.match(/\.(jpe?g|png|webp|gif)$/i)) {
+  // 3. Cari berdasarkan nama file di Google Drive (Folder pendaftar atau global Drive search)
+  var nameCandidates = [];
+  if (fileName) nameCandidates.push(fileName);
+  if (valueStr && valueStr.match(/\.(jpe?g|png|webp|gif)$/i)) nameCandidates.push(valueStr);
+  if (ans.id) {
+    nameCandidates.push("foto_" + ans.id + ".jpg");
+    nameCandidates.push("berkas_" + ans.id + ".jpg");
+  }
+
+  for (var n = 0; n < nameCandidates.length; n++) {
+    var targetName = nameCandidates[n];
     try {
       var folders = DriveApp.getFoldersByName("MB Chondro Berkas Pendaftar");
-      if (folders.hasNext()) {
+      while (folders.hasNext()) {
         var folder = folders.next();
-        var files = folder.getFilesByName(fileName);
+        var files = folder.getFilesByName(targetName);
         if (files.hasNext()) {
           var targetFile = files.next();
           var blob2 = targetFile.getBlob();
           var bytes2 = blob2.getBytes();
-          if (bytes2.length <= 3500000) {
+          if (bytes2.length <= 4000000) {
             ans.fileUrl = "data:" + (blob2.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes2);
             return ans;
           }
+        }
+      }
+
+      var globalFiles = DriveApp.getFilesByName(targetName);
+      if (globalFiles.hasNext()) {
+        var gFile = globalFiles.next();
+        var gBlob = gFile.getBlob();
+        var gBytes = gBlob.getBytes();
+        if (gBytes.length <= 4000000) {
+          ans.fileUrl = "data:" + (gBlob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(gBytes);
+          return ans;
         }
       }
     } catch (e2) {}
@@ -1658,12 +1681,16 @@ function getRekrutmenImageBase64(data) {
     } catch (e) {}
   }
 
-  if (fileName) {
+  var nameCandidates = [];
+  if (fileName) nameCandidates.push(fileName);
+
+  for (var n = 0; n < nameCandidates.length; n++) {
+    var targetName = nameCandidates[n];
     try {
       var folders = DriveApp.getFoldersByName("MB Chondro Berkas Pendaftar");
-      if (folders.hasNext()) {
+      while (folders.hasNext()) {
         var folder = folders.next();
-        var files = folder.getFilesByName(fileName);
+        var files = folder.getFilesByName(targetName);
         if (files.hasNext()) {
           var targetFile = files.next();
           var blob2 = targetFile.getBlob();
@@ -1674,10 +1701,21 @@ function getRekrutmenImageBase64(data) {
           };
         }
       }
+
+      var globalFiles = DriveApp.getFilesByName(targetName);
+      if (globalFiles.hasNext()) {
+        var gFile = globalFiles.next();
+        var gBlob = gFile.getBlob();
+        return {
+          success: true,
+          base64: "data:" + (gBlob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(gBlob.getBytes()),
+          name: gFile.getName()
+        };
+      }
     } catch (e2) {}
   }
 
-  return { success: false, message: "File gambar tidak ditemukan." };
+  return { success: false, message: "File gambar tidak ditemukan di Google Drive." };
 }
 
 function getRekrutmenSubmissions(formId) {
@@ -1865,17 +1903,18 @@ function addRekrutmenSubmission(data) {
         }
       }
 
-      var ansRow = [
-        ansId,
-        subId,
-        String(item.fieldId || ""),
-        String(item.value || ""),
-        fileUrl,
-        String(item.fileName || ""),
-        String(item.fileType || ""),
-        Number(item.fileSize) || 0,
-        now
-      ];
+      var ansObj = {
+        id: ansId,
+        submissionId: subId,
+        fieldId: String(item.fieldId || ""),
+        value: String(item.value || ""),
+        fileUrl: fileUrl,
+        fileName: String(item.fileName || ""),
+        fileType: String(item.fileType || ""),
+        fileSize: Number(item.fileSize) || 0,
+        createdAt: now
+      };
+      var ansRow = buildRowArray(ansSheet, ansCfg, ansObj);
       ansSheet.appendRow(ansRow);
     }
   }
