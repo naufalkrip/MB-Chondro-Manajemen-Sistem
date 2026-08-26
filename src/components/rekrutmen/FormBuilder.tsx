@@ -1,4 +1,5 @@
 import { useMemo, useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Plus,
   Trash2,
@@ -14,6 +15,7 @@ import {
   Upload,
   Sparkles,
   Pencil,
+  Maximize2,
 } from "lucide-react";
 import type { RekrutmenField, RekrutmenForm, RekrutmenFieldType, RekrutmenFieldOption } from "../../types";
 import { Modal } from "../ui/Modal";
@@ -92,6 +94,7 @@ export function FormBuilder({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [savingField, setSavingField] = useState(false);
   const [deletingField, setDeletingField] = useState<RekrutmenField | null>(null);
+  const [previewImage, setPreviewImage] = useState<{ url: string; title: string } | null>(null);
 
   const [copySuccess, setCopySuccess] = useState(false);
 
@@ -1159,6 +1162,12 @@ export function FormBuilder({
                     <img
                       src={fieldForm.exampleImageUrl}
                       alt="Contoh yang benar"
+                      onClick={() =>
+                        setPreviewImage({
+                          url: fieldForm.exampleImageUrl,
+                          title: fieldForm.exampleImageTitle || "Pratinjau Foto Contoh",
+                        })
+                      }
                       style={{
                         width: 76,
                         height: 56,
@@ -1166,17 +1175,44 @@ export function FormBuilder({
                         borderRadius: 6,
                         border: "1px solid #cbd5e1",
                         background: "#ffffff",
+                        cursor: "pointer",
                       }}
+                      title="Klik untuk melihat foto layar penuh"
                     />
                     <div style={{ flex: 1 }}>
                       <strong style={{ fontSize: "12.5px", display: "block", color: "var(--navy-900)" }}>
                         {fieldForm.exampleImageTitle || "Contoh Foto / Lampiran Visual"}
                       </strong>
-                      <span style={{ fontSize: "11.5px", color: "#059669", display: "block", marginTop: 2 }}>
-                        {fieldForm.exampleImageUrl.startsWith("data:image/")
-                          ? "✓ Foto berhasil diunggah & siap disimpan ke formulir."
-                          : "✓ Tautan foto terpasang."}
-                      </span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
+                        <span style={{ fontSize: "11.5px", color: "#059669" }}>
+                          {fieldForm.exampleImageUrl.startsWith("data:image/")
+                            ? "✓ Foto berhasil diunggah."
+                            : "✓ Tautan foto terpasang."}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setPreviewImage({
+                              url: fieldForm.exampleImageUrl,
+                              title: fieldForm.exampleImageTitle || "Pratinjau Foto Contoh",
+                            })
+                          }
+                          style={{
+                            background: "none",
+                            border: "none",
+                            padding: 0,
+                            color: "var(--primary-700, #b91c1c)",
+                            fontSize: "11.5px",
+                            fontWeight: 600,
+                            cursor: "pointer",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 3,
+                          }}
+                        >
+                          <Maximize2 size={11} /> Lihat Layar Penuh
+                        </button>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -1185,6 +1221,90 @@ export function FormBuilder({
           )}
         </div>
       </Modal>
+
+      {/* FULLSCREEN LIGHTBOX PREVIEW */}
+      {previewImage &&
+        createPortal(
+          <div
+            onClick={() => setPreviewImage(null)}
+            style={{
+              position: "fixed",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(5, 10, 20, 0.95)",
+              backdropFilter: "blur(12px)",
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 99999999,
+              animation: "modalFadeIn 0.2s ease-out",
+              userSelect: "none",
+            }}
+          >
+            <div
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 20px",
+                background: "rgba(15, 23, 42, 0.85)",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+                color: "#ffffff",
+              }}
+            >
+              <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>
+                📸 {previewImage.title || "Pratinjau Foto Contoh"}
+              </strong>
+              <button
+                type="button"
+                onClick={() => setPreviewImage(null)}
+                style={{
+                  background: "rgba(239, 68, 68, 0.25)",
+                  border: "1px solid rgba(239, 68, 68, 0.5)",
+                  color: "#fca5a5",
+                  borderRadius: "6px",
+                  padding: "6px 14px",
+                  fontSize: "13px",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                }}
+              >
+                <X size={15} /> <span>Tutup</span>
+              </button>
+            </div>
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "20px",
+              }}
+            >
+              <img
+                src={previewImage.url}
+                alt="Pratinjau Penuh"
+                style={{
+                  maxWidth: "95vw",
+                  maxHeight: "85vh",
+                  objectFit: "contain",
+                  borderRadius: 10,
+                  boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8)",
+                  background: "#000000",
+                }}
+              />
+            </div>
+          </div>,
+          document.body
+        )}
 
       {/* DIALOG KONFIRMASI HAPUS PERTANYAAN */}
       <ConfirmDialog

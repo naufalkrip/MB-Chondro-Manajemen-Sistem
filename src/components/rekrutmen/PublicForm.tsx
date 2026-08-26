@@ -11,6 +11,10 @@ import {
   Loader2,
   RefreshCw,
   Lock,
+  ZoomIn,
+  ZoomOut,
+  Maximize2,
+  X,
 } from "lucide-react";
 import type { RekrutmenFormWithFields, RekrutmenField } from "../../types";
 import { useApi } from "../../hooks/useApi";
@@ -50,12 +54,33 @@ export function PublicForm() {
   const [isPreviewing, setIsPreviewing] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const [activeSampleImage, setActiveSampleImage] = useState<string | null>(null);
+  const [activeSampleImage, setActiveSampleImage] = useState<{ url: string; title: string } | null>(null);
+  const [imageZoom, setImageZoom] = useState<number>(1);
 
   const sortedFields = useMemo(() => {
     if (!form?.fields) return [];
     return [...form.fields].sort((a, b) => (a.sortOrder || 0) - (b.sortOrder || 0));
   }, [form]);
+
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setActiveSampleImage(null);
+        setImageZoom(1);
+      }
+    };
+    if (activeSampleImage) {
+      window.addEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+      document.body.style.overflow = "";
+    };
+  }, [activeSampleImage]);
 
   // Sinkronisasi pertanyaan dengan state jawaban tanpa menghapus teks yang sedang diisi
   useEffect(() => {
@@ -790,6 +815,12 @@ export function PublicForm() {
                     {/* Contoh Foto / Lampiran Visual HANYA untuk pertanyaan upload berkas/foto yang memiliki exampleImageUrl */}
                     {(field.fieldType === "image" || field.fieldType === "file") && field.exampleImageUrl && field.exampleImageUrl.trim() !== "" && (
                       <div
+                        onClick={() =>
+                          setActiveSampleImage({
+                            url: field.exampleImageUrl || "",
+                            title: field.exampleImageTitle || `Format / Petunjuk Foto: ${field.label}`,
+                          })
+                        }
                         style={{
                           padding: "10px 14px",
                           background: "#f0f9ff",
@@ -799,29 +830,30 @@ export function PublicForm() {
                           gap: 12,
                           alignItems: "center",
                           marginBottom: 4,
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
                         }}
+                        title="Klik untuk membuka foto dalam ukuran penuh / layar penuh"
                       >
                         <img
                           src={field.exampleImageUrl}
                           alt="Contoh yang benar"
-                          onClick={() => setActiveSampleImage(field.exampleImageUrl || null)}
                           style={{
                             width: 76,
                             height: 54,
                             objectFit: "cover",
                             borderRadius: 6,
                             border: "1px solid #7dd3fc",
-                            cursor: "pointer",
                             boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+                            flexShrink: 0,
                           }}
-                          title="Klik untuk memperbesar contoh"
                         />
                         <div style={{ flex: 1 }}>
                           <span style={{ fontSize: "12.5px", fontWeight: 600, color: "#0369a1", display: "block" }}>
                             📸 {field.exampleImageTitle || "Contoh format yang benar"}
                           </span>
-                          <span style={{ fontSize: "11.5px", color: "#0284c7" }}>
-                            Klik gambar untuk memperbesar contoh format yang benar.
+                          <span style={{ fontSize: "11.5px", color: "#0284c7", display: "inline-flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                            <Maximize2 size={12} /> Klik untuk melihat foto layar penuh
                           </span>
                         </div>
                       </div>
@@ -1029,7 +1061,12 @@ export function PublicForm() {
                                 <img
                                   src={answer.fileBase64}
                                   alt="Preview Foto"
-                                  onClick={() => setActiveSampleImage(answer.fileBase64 || null)}
+                                  onClick={() =>
+                                    setActiveSampleImage({
+                                      url: answer.fileBase64 || "",
+                                      title: `Foto Anda: ${field.label}`,
+                                    })
+                                  }
                                   style={{
                                     width: 54,
                                     height: 54,
@@ -1038,7 +1075,7 @@ export function PublicForm() {
                                     border: "1px solid #86efac",
                                     cursor: "pointer",
                                   }}
-                                  title="Klik untuk memperbesar foto"
+                                  title="Klik untuk memperbesar foto layar penuh"
                                 />
                               ) : (
                                 <FileText size={32} style={{ color: "#16a34a", flexShrink: 0 }} />
@@ -1056,9 +1093,14 @@ export function PublicForm() {
                                   {answer.fileBase64 && (field.fieldType === "image" || answer.fileType?.startsWith("image/")) && (
                                     <span
                                       style={{ fontSize: "11px", color: "#059669", cursor: "pointer", textDecoration: "underline" }}
-                                      onClick={() => setActiveSampleImage(answer.fileBase64 || null)}
+                                      onClick={() =>
+                                        setActiveSampleImage({
+                                          url: answer.fileBase64 || "",
+                                          title: `Foto Anda: ${field.label}`,
+                                        })
+                                      }
                                     >
-                                      🔎 Lihat Foto
+                                      🔎 Lihat Layar Penuh
                                     </span>
                                   )}
                                 </div>
@@ -1143,7 +1185,12 @@ export function PublicForm() {
                           <img
                             src={ans.fileBase64}
                             alt="Preview Foto"
-                            onClick={() => setActiveSampleImage(ans.fileBase64 || null)}
+                            onClick={() =>
+                              setActiveSampleImage({
+                                url: ans.fileBase64 || "",
+                                title: ans.fileName || `Foto: ${field.label}`,
+                              })
+                            }
                             style={{
                               width: 88,
                               height: 66,
@@ -1153,7 +1200,7 @@ export function PublicForm() {
                               cursor: "pointer",
                               boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
                             }}
-                            title="Klik untuk memperbesar foto"
+                            title="Klik untuk melihat foto layar penuh"
                           />
                           <div>
                             <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block" }}>
@@ -1161,7 +1208,12 @@ export function PublicForm() {
                             </strong>
                             <button
                               type="button"
-                              onClick={() => setActiveSampleImage(ans.fileBase64 || null)}
+                              onClick={() =>
+                                setActiveSampleImage({
+                                  url: ans.fileBase64 || "",
+                                  title: ans.fileName || `Foto: ${field.label}`,
+                                })
+                              }
                               style={{
                                 marginTop: 4,
                                 background: "none",
@@ -1176,7 +1228,7 @@ export function PublicForm() {
                                 gap: 4,
                               }}
                             >
-                              🔍 Perbesar Foto
+                              <Maximize2 size={12} /> Lihat Layar Penuh
                             </button>
                           </div>
                         </div>
@@ -1251,70 +1303,237 @@ export function PublicForm() {
         </footer>
       </div>
 
-      {/* SAMPLE IMAGE MODAL LIGHTBOX */}
+      {/* SAMPLE IMAGE FULLSCREEN LIGHTBOX MODAL */}
       {activeSampleImage &&
         createPortal(
           <div
-            onClick={() => setActiveSampleImage(null)}
+            onClick={() => {
+              setActiveSampleImage(null);
+              setImageZoom(1);
+            }}
             style={{
               position: "fixed",
               top: 0,
               left: 0,
               right: 0,
               bottom: 0,
-              background: "rgba(0, 0, 0, 0.85)",
-              backdropFilter: "blur(4px)",
+              width: "100vw",
+              height: "100vh",
+              background: "rgba(5, 10, 20, 0.95)",
+              backdropFilter: "blur(12px)",
               display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 9999999,
-              padding: 20,
+              flexDirection: "column",
+              zIndex: 99999999,
+              animation: "modalFadeIn 0.2s ease-out",
+              userSelect: "none",
             }}
           >
+            {/* Top Bar Navigation */}
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
-                maxWidth: 560,
-                width: "100%",
-                background: "#ffffff",
-                borderRadius: 14,
-                overflow: "hidden",
-                boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
                 display: "flex",
-                flexDirection: "column",
-                animation: "modalFadeIn 0.2s ease",
+                justifyContent: "space-between",
+                alignItems: "center",
+                padding: "12px 20px",
+                background: "rgba(15, 23, 42, 0.85)",
+                borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
+                color: "#ffffff",
+                flexWrap: "wrap",
+                gap: 10,
+                flexShrink: 0,
               }}
             >
-              <div
-                style={{
-                  padding: "14px 18px",
-                  borderBottom: "1px solid #e2e8f0",
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  background: "#ffffff",
-                }}
-              >
-                <strong style={{ fontSize: "14px", fontWeight: 600, color: "var(--navy-900)" }}>
-                  📸 Pratinjau Foto / Lampiran
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  style={{
+                    background: "var(--primary-700, #b91c1c)",
+                    color: "#ffffff",
+                    fontSize: "11px",
+                    fontWeight: 700,
+                    padding: "3px 8px",
+                    borderRadius: "6px",
+                    letterSpacing: "0.5px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  Layar Penuh
+                </span>
+                <strong style={{ fontSize: "14.5px", color: "#f8fafc", maxWidth: "55vw", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  {activeSampleImage.title || "Pratinjau Foto"}
                 </strong>
+              </div>
+
+              {/* Controls */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {/* Zoom out */}
                 <button
                   type="button"
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setActiveSampleImage(null)}
-                  style={{ padding: "4px 8px", fontSize: "16px", lineHeight: 1 }}
-                  title="Tutup Foto"
+                  onClick={() => setImageZoom((z) => Math.max(1, Number((z - 0.25).toFixed(2))))}
+                  disabled={imageZoom <= 1}
+                  style={{
+                    background: imageZoom <= 1 ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.15)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: imageZoom <= 1 ? "#64748b" : "#ffffff",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: imageZoom <= 1 ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  title="Perkecil"
                 >
-                  ✕
+                  <ZoomOut size={15} /> Perkecil
+                </button>
+
+                {/* Zoom Level / Reset */}
+                <button
+                  type="button"
+                  onClick={() => setImageZoom(1)}
+                  style={{
+                    background: imageZoom > 1 ? "rgba(37, 99, 235, 0.4)" : "rgba(255, 255, 255, 0.1)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: "#ffffff",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    minWidth: "54px",
+                    textAlign: "center",
+                  }}
+                  title="Reset Zoom (100%)"
+                >
+                  {Math.round(imageZoom * 100)}%
+                </button>
+
+                {/* Zoom in */}
+                <button
+                  type="button"
+                  onClick={() => setImageZoom((z) => Math.min(3, Number((z + 0.25).toFixed(2))))}
+                  disabled={imageZoom >= 3}
+                  style={{
+                    background: imageZoom >= 3 ? "rgba(255, 255, 255, 0.05)" : "rgba(255, 255, 255, 0.15)",
+                    border: "1px solid rgba(255, 255, 255, 0.2)",
+                    color: imageZoom >= 3 ? "#64748b" : "#ffffff",
+                    borderRadius: "6px",
+                    padding: "6px 12px",
+                    fontSize: "12.5px",
+                    fontWeight: 600,
+                    cursor: imageZoom >= 3 ? "not-allowed" : "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 4,
+                  }}
+                  title="Perbesar"
+                >
+                  <ZoomIn size={15} /> Perbesar
+                </button>
+
+                {/* Close button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveSampleImage(null);
+                    setImageZoom(1);
+                  }}
+                  style={{
+                    background: "rgba(239, 68, 68, 0.25)",
+                    border: "1px solid rgba(239, 68, 68, 0.5)",
+                    color: "#fca5a5",
+                    borderRadius: "6px",
+                    padding: "6px 14px",
+                    fontSize: "13px",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 6,
+                    marginLeft: 6,
+                  }}
+                  title="Tutup (ESC)"
+                >
+                  <X size={15} /> <span>Tutup</span>
                 </button>
               </div>
-              <div style={{ padding: 16, textAlign: "center", background: "#0f172a", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                <img
-                  src={activeSampleImage}
-                  alt="Contoh"
-                  style={{ maxWidth: "100%", maxHeight: "75vh", objectFit: "contain", borderRadius: 6, boxShadow: "0 4px 16px rgba(0,0,0,0.4)" }}
-                />
-              </div>
+            </div>
+
+            {/* Viewer Stage */}
+            <div
+              style={{
+                flex: 1,
+                overflow: "auto",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                padding: "20px",
+                cursor: imageZoom > 1 ? "grab" : "zoom-in",
+              }}
+              onClick={(e) => {
+                if (e.target === e.currentTarget) {
+                  setActiveSampleImage(null);
+                  setImageZoom(1);
+                }
+              }}
+            >
+              <img
+                src={activeSampleImage.url}
+                alt={activeSampleImage.title || "Pratinjau"}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setImageZoom((prev) => (prev === 1 ? 1.6 : 1));
+                }}
+                style={{
+                  maxWidth: imageZoom === 1 ? "95vw" : "none",
+                  maxHeight: imageZoom === 1 ? "82vh" : "none",
+                  width: imageZoom > 1 ? `${imageZoom * 90}%` : "auto",
+                  objectFit: "contain",
+                  borderRadius: 10,
+                  boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.1)",
+                  transition: "width 0.15s ease",
+                  display: "block",
+                  margin: "auto",
+                  background: "#000000",
+                }}
+                title="Klik gambar untuk memperbesar / normal"
+              />
+            </div>
+
+            {/* Bottom Tip Bar */}
+            <div
+              style={{
+                padding: "10px 20px",
+                background: "rgba(15, 23, 42, 0.8)",
+                borderTop: "1px solid rgba(255, 255, 255, 0.08)",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                fontSize: "12px",
+                color: "#94a3b8",
+                flexShrink: 0,
+              }}
+            >
+              <span>💡 Klik foto untuk perbesar/perkecil otomatis, atau gunakan tombol di atas.</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveSampleImage(null);
+                  setImageZoom(1);
+                }}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "#cbd5e1",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  fontSize: "12px",
+                }}
+              >
+                Tutup Pratinjau (ESC)
+              </button>
             </div>
           </div>,
           document.body
