@@ -18,7 +18,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import type { RekrutmenField, RekrutmenForm, RekrutmenFieldType, RekrutmenFieldOption } from "../../types";
-import { uploadRekrutmenImageItem, fileToBase64 } from "../../services/api";
+import { uploadRekrutmenImageItem, compressImageToSafeHd } from "../../services/api";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
@@ -248,28 +248,27 @@ export function FormBuilder({
       }
       try {
         setCompressingImage(true);
-        // Baca file gambar asli kualitas penuh tanpa penurunan resolusi
-        const rawBase64 = await fileToBase64(file);
+        // 1. Kompres gambar ke format JPEG HD tajam (1080px) aman (<= 42k karakter)
+        const safeHdBase64 = await compressImageToSafeHd(file);
 
-        // Unggah langsung file resolusi tinggi ke server / Google Drive
-        const uploadRes = await uploadRekrutmenImageItem(rawBase64, file.name);
-
-        if (uploadRes.success && uploadRes.data?.url) {
-          setFieldForm((p) => ({
-            ...p,
-            exampleImageUrl: uploadRes.data!.url,
-            exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
-          }));
-        } else {
-          // Fallback jika API unggah gagal
-          setFieldForm((p) => ({
-            ...p,
-            exampleImageUrl: rawBase64,
-            exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
-          }));
+        // 2. Coba unggah ke Google Drive jika didukung
+        let finalUrl = safeHdBase64;
+        try {
+          const uploadRes = await uploadRekrutmenImageItem(safeHdBase64, file.name);
+          if (uploadRes.success && uploadRes.data?.url) {
+            finalUrl = uploadRes.data.url;
+          }
+        } catch {
+          // Tetap gunakan safeHdBase64
         }
+
+        setFieldForm((p) => ({
+          ...p,
+          exampleImageUrl: finalUrl,
+          exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
+        }));
       } catch (err) {
-        console.error("Gagal memproses gambar resolusi tinggi:", err);
+        console.error("Gagal memproses gambar:", err);
         alert("Gagal memproses gambar. Silakan coba lagi.");
       } finally {
         setCompressingImage(false);

@@ -944,6 +944,61 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
+/**
+ * Mengompres gambar menjadi format JPEG resolusi HD tajam (hingga 1080px)
+ * yang aman (<= 42.000 karakter) agar 100% muat di sel Google Spreadsheet tanpa pernah terpotong/rusak.
+ */
+export function compressImageToSafeHd(file: File, maxChars = 42000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
+    reader.onload = (ev) => {
+      const img = new Image();
+      img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
+      img.onload = () => {
+        let maxDim = 1080;
+        let quality = 0.82;
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          return resolve(ev.target?.result as string);
+        }
+
+        let result = "";
+        for (let attempt = 0; attempt < 8; attempt++) {
+          let width = img.width;
+          let height = img.height;
+          if (width > maxDim || height > maxDim) {
+            if (width > height) {
+              height = Math.round((height * maxDim) / width);
+              width = maxDim;
+            } else {
+              width = Math.round((width * maxDim) / height);
+              height = maxDim;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = "high";
+          ctx.clearRect(0, 0, width, height);
+          ctx.drawImage(img, 0, 0, width, height);
+          result = canvas.toDataURL("image/jpeg", quality);
+
+          if (result.length <= maxChars) {
+            break;
+          }
+          maxDim = Math.round(maxDim * 0.85);
+          quality = Math.max(0.6, quality - 0.06);
+        }
+        resolve(result);
+      };
+      img.src = ev.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 export async function uploadRekrutmenImageItem(
   base64OrFile: string | File,
   fileName?: string

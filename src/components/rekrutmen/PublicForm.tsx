@@ -64,6 +64,30 @@ export function PublicForm() {
     setImageZoom(1);
     setLightboxLoading(true);
     setLightboxError(false);
+
+    if (!url || (!url.startsWith("data:image/") && !url.startsWith("http"))) {
+      setLightboxLoading(false);
+      setLightboxError(true);
+      return;
+    }
+
+    const testImg = new Image();
+    testImg.referrerPolicy = "no-referrer";
+    testImg.crossOrigin = "anonymous";
+    testImg.onload = () => {
+      setLightboxLoading(false);
+    };
+    testImg.onerror = () => {
+      const driveMatch = url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+      if (driveMatch && !url.includes("thumbnail?id=")) {
+        const fallbackUrl = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
+        setActiveSampleImage({ url: fallbackUrl, title });
+      } else {
+        setLightboxLoading(false);
+        setLightboxError(true);
+      }
+    };
+    testImg.src = url;
   };
 
   const sortedFields = useMemo(() => {
