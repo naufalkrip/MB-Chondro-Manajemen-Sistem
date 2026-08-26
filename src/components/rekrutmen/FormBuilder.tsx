@@ -18,7 +18,7 @@ import {
   Maximize2,
 } from "lucide-react";
 import type { RekrutmenField, RekrutmenForm, RekrutmenFieldType, RekrutmenFieldOption } from "../../types";
-import { uploadRekrutmenImageItem, compressImageToSafeHd } from "../../services/api";
+import { compressImageToSafeHd } from "../../services/api";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
@@ -248,23 +248,12 @@ export function FormBuilder({
       }
       try {
         setCompressingImage(true);
-        // 1. Kompres gambar ke format JPEG HD tajam (1080px) aman (<= 42k karakter)
+        // Kompres gambar ke format JPEG HD tajam (1080px) yang 100% aman (<= 42k karakter)
         const safeHdBase64 = await compressImageToSafeHd(file);
-
-        // 2. Coba unggah ke Google Drive jika didukung
-        let finalUrl = safeHdBase64;
-        try {
-          const uploadRes = await uploadRekrutmenImageItem(safeHdBase64, file.name);
-          if (uploadRes.success && uploadRes.data?.url) {
-            finalUrl = uploadRes.data.url;
-          }
-        } catch {
-          // Tetap gunakan safeHdBase64
-        }
 
         setFieldForm((p) => ({
           ...p,
-          exampleImageUrl: finalUrl,
+          exampleImageUrl: safeHdBase64,
           exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
         }));
       } catch (err) {

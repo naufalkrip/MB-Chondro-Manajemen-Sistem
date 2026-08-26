@@ -1561,7 +1561,7 @@ function uploadRekrutmenImage(data) {
   file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
   var fileId = file.getId();
 
-  var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
+  var directUrl = "https://drive.google.com/thumbnail?id=" + fileId + "&sz=w1600";
 
   return {
     fileId: fileId,
@@ -1725,7 +1725,7 @@ function addRekrutmenSubmission(data) {
           var fBlob = Utilities.newBlob(fBytes, mime, String(item.fileName || ("berkas_" + ansId + ".jpg")));
           var dFile = driveFolder.createFile(fBlob);
           dFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-          fileUrl = "https://lh3.googleusercontent.com/d/" + dFile.getId();
+          fileUrl = "https://drive.google.com/thumbnail?id=" + dFile.getId() + "&sz=w1600";
         } catch (e) {
           if (fileUrl.length > 48000) fileUrl = fileUrl.substring(0, 48000);
         }

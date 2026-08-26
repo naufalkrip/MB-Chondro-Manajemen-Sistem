@@ -19,7 +19,7 @@ import {
 import type { RekrutmenFormWithFields, RekrutmenField } from "../../types";
 import { useApi } from "../../hooks/useApi";
 import { useToast } from "../../contexts/ToastContext";
-import { getRekrutmenFormData, addRekrutmenSubmissionItem } from "../../services/api";
+import { getRekrutmenFormData, addRekrutmenSubmissionItem, compressImageToSafeHd, fileToBase64 } from "../../services/api";
 import { CACHE_KEYS } from "../../services/cache";
 import logo from "../../aset/logo.png";
 
@@ -203,7 +203,7 @@ export function PublicForm() {
     }
   };
 
-  const handleFileSelect = (field: RekrutmenField, file: File | null) => {
+  const handleFileSelect = async (field: RekrutmenField, file: File | null) => {
     if (!file) return;
 
     const maxLimitMb = field.maxFileSize || (field.fieldType === "image" ? 2 : 5);
@@ -246,70 +246,26 @@ export function PublicForm() {
       return next;
     });
 
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const rawBase64 = ev.target?.result as string;
-
-      if (field.fieldType === "image" || file.type.startsWith("image/")) {
-        const img = new Image();
-        img.onload = () => {
-          const canvas = document.createElement("canvas");
-          let width = img.width;
-          let height = img.height;
-          const maxDim = 900;
-          if (width > maxDim || height > maxDim) {
-            if (width > height) {
-              height = Math.round((height * maxDim) / width);
-              width = maxDim;
-            } else {
-              width = Math.round((width * maxDim) / height);
-              height = maxDim;
-            }
-          }
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext("2d");
-          let finalBase64 = rawBase64;
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            finalBase64 = canvas.toDataURL("image/jpeg", 0.75);
-          }
-
-          setAnswers((prev) =>
-            prev.map((a) =>
-              a.fieldId === field.id
-                ? {
-                    ...a,
-                    file,
-                    value: file.name,
-                    fileBase64: finalBase64,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                  }
-                : a
-            )
-          );
-        };
-        img.onerror = () => {
-          setAnswers((prev) =>
-            prev.map((a) =>
-              a.fieldId === field.id
-                ? {
-                    ...a,
-                    file,
-                    value: file.name,
-                    fileBase64: rawBase64,
-                    fileName: file.name,
-                    fileSize: file.size,
-                    fileType: file.type,
-                  }
-                : a
-            )
-          );
-        };
-        img.src = rawBase64;
-      } else {
+    if (field.fieldType === "image" || file.type.startsWith("image/")) {
+      try {
+        const finalBase64 = await compressImageToSafeHd(file);
+        setAnswers((prev) =>
+          prev.map((a) =>
+            a.fieldId === field.id
+              ? {
+                  ...a,
+                  file,
+                  value: file.name,
+                  fileBase64: finalBase64,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                }
+              : a
+          )
+        );
+      } catch {
+        const rawBase64 = await fileToBase64(file);
         setAnswers((prev) =>
           prev.map((a) =>
             a.fieldId === field.id
@@ -326,8 +282,28 @@ export function PublicForm() {
           )
         );
       }
-    };
-    reader.readAsDataURL(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const rawBase64 = ev.target?.result as string;
+        setAnswers((prev) =>
+          prev.map((a) =>
+            a.fieldId === field.id
+              ? {
+                  ...a,
+                  file,
+                  value: file.name,
+                  fileBase64: rawBase64,
+                  fileName: file.name,
+                  fileSize: file.size,
+                  fileType: file.type,
+                }
+              : a
+          )
+        );
+      };
+      reader.readAsDataURL(file);
+    }
   };
 
   const removeFile = (fieldId: string) => {
