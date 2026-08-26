@@ -1246,8 +1246,7 @@ export function FormBuilder({
               <img
                 src={previewImage.url}
                 alt="Pratinjau Penuh"
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
+                referrerPolicy={previewImage.url.startsWith("http") ? "no-referrer" : undefined}
                 onError={(e) => {
                   const currentSrc = e.currentTarget.src;
                   const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);

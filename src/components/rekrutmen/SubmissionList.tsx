@@ -356,8 +356,7 @@ export function SubmissionList({
               <img
                 src={fotoUrl}
                 alt="Foto"
-                referrerPolicy="no-referrer"
-                crossOrigin="anonymous"
+                referrerPolicy={fotoUrl.startsWith("http") ? "no-referrer" : undefined}
                 onError={(e) => {
                   const currentSrc = e.currentTarget.src;
                   const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -771,8 +770,7 @@ export function SubmissionList({
                               <img
                                 src={fileUrl}
                                 alt="Berkas"
-                                referrerPolicy="no-referrer"
-                                crossOrigin="anonymous"
+                                referrerPolicy={fileUrl.startsWith("http") ? "no-referrer" : undefined}
                                 onError={(e) => {
                                   const currentSrc = e.currentTarget.src;
                                   const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
@@ -1229,8 +1227,7 @@ export function SubmissionList({
                 <img
                   src={lightboxImage.url}
                   alt="Foto Calon"
-                  referrerPolicy="no-referrer"
-                  crossOrigin="anonymous"
+                  referrerPolicy={lightboxImage.url.startsWith("http") ? "no-referrer" : undefined}
                   onError={(e) => {
                     const currentSrc = e.currentTarget.src;
                     const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);

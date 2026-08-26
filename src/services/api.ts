@@ -945,29 +945,33 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * Mengompres gambar menjadi format JPEG resolusi HD tajam (hingga 1080px)
- * yang aman (<= 42.000 karakter) agar 100% muat di sel Google Spreadsheet tanpa pernah terpotong/rusak.
+ * Mengompres gambar menjadi format JPEG resolusi tajam (hingga 800-1080px)
+ * yang aman (<= 42.000 karakter) dengan latar putih agar gambar transparan (PNG) tidak menjadi hitam.
  */
 export function compressImageToSafeHd(file: File, maxChars = 42000): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
     reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      if (!dataUrl) {
+        return reject(new Error("File gambar kosong."));
+      }
       const img = new Image();
       img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
       img.onload = () => {
-        let maxDim = 1080;
-        let quality = 0.82;
+        let maxDim = 800;
+        let quality = 0.8;
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) {
-          return resolve(ev.target?.result as string);
+          return resolve(dataUrl);
         }
 
         let result = "";
         for (let attempt = 0; attempt < 8; attempt++) {
-          let width = img.width;
-          let height = img.height;
+          let width = img.width || 800;
+          let height = img.height || 600;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
               height = Math.round((height * maxDim) / width);
@@ -981,19 +985,21 @@ export function compressImageToSafeHd(file: File, maxChars = 42000): Promise<str
           canvas.height = height;
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
-          ctx.clearRect(0, 0, width, height);
+          // Selalu isi background putih agar gambar transparan (PNG) tidak menjadi hitam
+          ctx.fillStyle = "#ffffff";
+          ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
           result = canvas.toDataURL("image/jpeg", quality);
 
           if (result.length <= maxChars) {
             break;
           }
-          maxDim = Math.round(maxDim * 0.85);
-          quality = Math.max(0.6, quality - 0.06);
+          maxDim = Math.round(maxDim * 0.82);
+          quality = Math.max(0.55, quality - 0.08);
         }
-        resolve(result);
+        resolve(result || dataUrl);
       };
-      img.src = ev.target?.result as string;
+      img.src = dataUrl;
     };
     reader.readAsDataURL(file);
   });
