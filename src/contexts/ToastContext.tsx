@@ -43,11 +43,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ showToast, success, error, info }}>
       {children}
-      <div className="toast-container">
-        {toasts.map((t) => (
-          <Toast key={t.id} type={t.type} message={t.message} onClose={() => removeToast(t.id)} />
-        ))}
-      </div>
+      {toasts.length > 0 && (
+        <div className="toast-container" style={{ pointerEvents: "none" }}>
+          {toasts.map((t) => (
+            <Toast key={t.id} type={t.type} message={t.message} onClose={() => removeToast(t.id)} />
+          ))}
+        </div>
+      )}
     </ToastContext.Provider>
   );
 }

@@ -1461,9 +1461,11 @@ input, select, textarea {
   flex-direction: column;
   gap: 10px;
   max-width: min(380px, calc(100vw - 40px));
+  pointer-events: none;
 }
 
 .toast {
+  pointer-events: auto;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -4025,9 +4027,11 @@ body,
 
   /* Toast */
   .toast-container {
+    top: auto;
     left: 12px;
     right: 12px;
     bottom: 16px;
+    pointer-events: none;
   }
 
   .toast {
