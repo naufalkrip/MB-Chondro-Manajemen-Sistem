@@ -11,27 +11,26 @@ import {
   ChevronDown,
   ChevronUp,
   Image as ImageIcon,
-  FileUp,
   Upload,
   Sparkles,
   Pencil,
-  Maximize2,
+  Camera,
 } from "lucide-react";
 import type { RekrutmenField, RekrutmenForm, RekrutmenFieldType, RekrutmenFieldOption } from "../../types";
 import { compressImageToSafeHd } from "../../services/api";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 
-const FIELD_TYPES: { value: RekrutmenFieldType; label: string; hasOptions: boolean; isUpload: boolean }[] = [
-  { value: "text", label: "Teks Pendek", hasOptions: false, isUpload: false },
-  { value: "textarea", label: "Teks Panjang (Textarea)", hasOptions: false, isUpload: false },
-  { value: "number", label: "Angka (Number)", hasOptions: false, isUpload: false },
-  { value: "date", label: "Tanggal (Date)", hasOptions: false, isUpload: false },
-  { value: "radio", label: "Pilihan Tunggal (Radio)", hasOptions: true, isUpload: false },
-  { value: "checkbox", label: "Pilihan Ganda (Checkbox)", hasOptions: true, isUpload: false },
-  { value: "select", label: "Dropdown Pilihan", hasOptions: true, isUpload: false },
-  { value: "image", label: "Upload Foto (JPG, PNG, WEBP)", hasOptions: false, isUpload: true },
-  { value: "file", label: "Upload Dokumen (PDF, JPG, PNG)", hasOptions: false, isUpload: true },
+const FIELD_TYPES: { value: RekrutmenFieldType; label: string; hasOptions: boolean; isUpload: boolean; icon: string }[] = [
+  { value: "text", label: "Teks Pendek", hasOptions: false, isUpload: false, icon: "Aa" },
+  { value: "textarea", label: "Teks Panjang (Textarea)", hasOptions: false, isUpload: false, icon: "¶" },
+  { value: "number", label: "Angka (Number)", hasOptions: false, isUpload: false, icon: "123" },
+  { value: "date", label: "Tanggal (Date)", hasOptions: false, isUpload: false, icon: "📅" },
+  { value: "radio", label: "Pilihan Tunggal (Radio)", hasOptions: true, isUpload: false, icon: "🔘" },
+  { value: "checkbox", label: "Pilihan Ganda (Checkbox)", hasOptions: true, isUpload: false, icon: "☑️" },
+  { value: "select", label: "Dropdown Pilihan", hasOptions: true, isUpload: false, icon: "▾" },
+  { value: "image", label: "Upload Foto (JPG, PNG, WEBP)", hasOptions: false, isUpload: true, icon: "📸" },
+  { value: "file", label: "Upload Dokumen (PDF, JPG, PNG)", hasOptions: false, isUpload: true, icon: "📄" },
 ];
 
 interface FormBuilderProps {
@@ -248,21 +247,22 @@ export function FormBuilder({
       }
       try {
         setCompressingImage(true);
-        // Kompres gambar ke format JPEG HD tajam (1080px) yang 100% aman (<= 42k karakter)
         const safeHdBase64 = await compressImageToSafeHd(file);
-
         setFieldForm((p) => ({
           ...p,
           exampleImageUrl: safeHdBase64,
           exampleImageTitle: p.exampleImageTitle || "Contoh foto yang benar",
         }));
       } catch (err) {
-        console.error("Gagal memproses gambar:", err);
         alert("Gagal memproses gambar. Silakan coba lagi.");
       } finally {
         setCompressingImage(false);
       }
     }
+  };
+
+  const getFieldTypeLabel = (type: RekrutmenFieldType) => {
+    return FIELD_TYPES.find((t) => t.value === type)?.label || type;
   };
 
   const publicLink = `${window.location.origin}/rekrutmen/form/${form.id || ""}`;
@@ -275,85 +275,87 @@ export function FormBuilder({
         style={{
           background: "linear-gradient(135deg, #c8101e 0%, #a41111 50%, #8a1414 100%)",
           borderRadius: "var(--radius-lg, 14px)",
-          padding: "14px 20px",
+          padding: "16px 20px",
           color: "#ffffff",
           boxShadow: "0 6px 20px rgba(185, 28, 28, 0.22)",
           width: "100%",
           boxSizing: "border-box",
         }}
       >
-        <div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
-            <h2 style={{ fontSize: "1.2rem", fontWeight: 700, margin: 0, color: "#ffffff" }}>
-              {form.title || "Formulir Pendaftaran Anggota Baru MB Chondro"}
-            </h2>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 4, flexWrap: "wrap" }}>
+              <h2 style={{ fontSize: "1.25rem", fontWeight: 700, margin: 0, color: "#ffffff" }}>
+                {form.title || "Formulir Pendaftaran Anggota Baru MB Chondro"}
+              </h2>
+              <button
+                type="button"
+                onClick={() => handleFormSave(form.status === "dibuka" ? "ditutup" : "dibuka")}
+                disabled={savingForm}
+                title={form.status === "dibuka" ? "Klik untuk menonaktifkan link pendaftaran" : "Klik untuk mengaktifkan link pendaftaran"}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  padding: "4px 12px",
+                  borderRadius: "20px",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  background: form.status === "dibuka" ? "rgba(16, 185, 129, 0.28)" : "rgba(239, 68, 68, 0.28)",
+                  color: "#ffffff",
+                  border: "1px solid rgba(255, 255, 255, 0.35)",
+                  cursor: "pointer",
+                  transition: "all 0.15s ease",
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: "50%",
+                    background: form.status === "dibuka" ? "#34d399" : "#f87171",
+                  }}
+                />
+                {form.status === "dibuka" ? "🟢 Status: Aktif (Menerima Pendaftar)" : "🔴 Status: Ditutup (Draft)"}
+              </button>
+            </div>
+            <p style={{ margin: "2px 0 0", fontSize: "12.5px", color: "rgba(255, 255, 255, 0.9)", lineHeight: 1.45 }}>
+              {form.description || "Silakan isi seluruh data dengan benar dan lengkap untuk proses seleksi calon anggota."}
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
             <button
               type="button"
-              onClick={() => handleFormSave(form.status === "dibuka" ? "ditutup" : "dibuka")}
-              disabled={savingForm}
-              title={form.status === "dibuka" ? "Klik untuk menonaktifkan / menutup link pendaftaran" : "Klik untuk mengaktifkan / membuka link pendaftaran"}
+              className="btn btn-outline btn-sm"
+              onClick={onPreview}
               style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 5,
-                padding: "3px 12px",
-                borderRadius: "20px",
-                fontSize: "11.5px",
-                fontWeight: 600,
-                background: form.status === "dibuka" ? "rgba(16, 185, 129, 0.25)" : "rgba(239, 68, 68, 0.25)",
                 color: "#ffffff",
-                border: "1px solid rgba(255, 255, 255, 0.35)",
-                cursor: "pointer",
-                transition: "all 0.15s ease",
+                borderColor: "rgba(255, 255, 255, 0.35)",
+                background: "rgba(255, 255, 255, 0.12)",
+                backdropFilter: "blur(6px)",
+                fontSize: "12.5px",
+                fontWeight: 600,
               }}
             >
-              <span
-                style={{
-                  width: 7,
-                  height: 7,
-                  borderRadius: "50%",
-                  background: form.status === "dibuka" ? "#34d399" : "#f87171",
-                }}
-              />
-              {form.status === "dibuka" ? "🟢 Aktif (Link Terbuka)" : "🔴 Tidak Aktif (Link Ditutup)"}
+              <Eye size={14} /> Preview Form Publik
             </button>
-          </div>
-          <p style={{ margin: "2px 0 0", fontSize: "12px", color: "rgba(255, 255, 255, 0.9)", lineHeight: 1.45 }}>
-            {form.description || "Silakan isi seluruh data dengan benar dan lengkap untuk proses seleksi calon anggota."}
-          </p>
-          <div
-            style={{
-              display: "flex",
-              gap: 12,
-              marginTop: 10,
-              fontSize: "11.5px",
-              color: "#ffffff",
-              flexWrap: "wrap",
-            }}
-          >
-            <span
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={handleCopyLink}
               style={{
-                padding: "3px 8px",
-                background: "rgba(255, 255, 255, 0.14)",
-                borderRadius: "6px",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
+                color: "#ffffff",
+                borderColor: "rgba(255, 255, 255, 0.35)",
+                background: "rgba(255, 255, 255, 0.12)",
+                backdropFilter: "blur(6px)",
+                fontSize: "12.5px",
+                fontWeight: 600,
               }}
             >
-              📝 <strong>{sortedFields.length}</strong> Pertanyaan
-            </span>
-            <span
-              style={{
-                padding: "3px 8px",
-                background: "rgba(255, 255, 255, 0.14)",
-                borderRadius: "6px",
-                border: "1px solid rgba(255, 255, 255, 0.2)",
-                display: "inline-flex",
-                alignItems: "center",
-                gap: 6,
-              }}
-            >
-              🔗 Link Publik: <code style={{ color: "#ffffff", fontWeight: 600 }}>/rekrutmen/form/{form.id || ""}</code>
-            </span>
+              {copySuccess ? <Check size={14} style={{ color: "#34d399" }} /> : <Copy size={14} />}
+              {copySuccess ? "Link Tersalin!" : "Salin Link Pendaftaran"}
+            </button>
           </div>
         </div>
       </div>
@@ -432,45 +434,12 @@ export function FormBuilder({
                 Struktur Pertanyaan Formulir
               </h3>
               <p style={{ fontSize: "12.5px", color: "var(--text-muted)", margin: "2px 0 0" }}>
-                Atur pertanyaan yang harus dijawab calon anggota baru secara dinamis
+                Susun pertanyaan yang wajib diisi calon anggota baru secara dinamis
               </p>
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={() => handleFormSave(form.status === "dibuka" ? "ditutup" : "dibuka")}
-                disabled={savingForm}
-                style={{
-                  fontSize: "12.5px",
-                  fontWeight: 600,
-                  color: form.status === "dibuka" ? "#dc2626" : "#059669",
-                  borderColor: form.status === "dibuka" ? "#fecaca" : "#a7f3d0",
-                  background: form.status === "dibuka" ? "#fef2f2" : "#ecfdf5",
-                }}
-                title={form.status === "dibuka" ? "Nonaktifkan link formulir agar tidak bisa diakses" : "Aktifkan link formulir agar bisa diakses"}
-              >
-                {form.status === "dibuka" ? "🔴 Nonaktifkan Link" : "🟢 Aktifkan Link"}
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={onPreview}
-                style={{ fontSize: "12.5px" }}
-              >
-                <Eye size={14} /> Preview Form
-              </button>
-              <button
-                type="button"
-                className="btn btn-outline btn-sm"
-                onClick={handleCopyLink}
-                style={{ fontSize: "12.5px" }}
-              >
-                {copySuccess ? <Check size={14} style={{ color: "#059669" }} /> : <Copy size={14} />}
-                {copySuccess ? "Tersalin!" : "Salin Link"}
-              </button>
               <button className="btn btn-primary btn-sm" onClick={openAddField} style={{ fontSize: "12.5px" }}>
-                <Plus size={15} /> Tambah Pertanyaan
+                <Plus size={15} /> Tambah Pertanyaan Baru
               </button>
             </div>
           </div>
@@ -505,7 +474,7 @@ export function FormBuilder({
                 Belum Ada Pertanyaan
               </h4>
               <p style={{ margin: "0 0 16px", fontSize: "13px", color: "var(--text-muted)", maxWidth: 420, marginLeft: "auto", marginRight: "auto" }}>
-                Mulai susun pertanyaan pendaftaran seperti Nama Lengkap, Nomor WhatsApp, Foto Calon Anggota, dan Foto KTP.
+                Mulai susun pertanyaan pendaftaran seperti Nama Lengkap, Nomor WhatsApp, Pas Foto Calon Anggota, dan Berkas Identitas.
               </p>
               <button className="btn btn-primary" onClick={openAddField}>
                 <Plus size={16} /> Buat Pertanyaan Pertama
@@ -541,7 +510,7 @@ export function FormBuilder({
                     background: "#ffffff",
                     borderRadius: "var(--radius-sm, 10px)",
                     border: "1px solid var(--border, #e2e8f0)",
-                    boxShadow: "0 1px 2px rgba(0,0,0,0.03)",
+                    boxShadow: "0 1px 3px rgba(0,0,0,0.03)",
                     transition: "all 0.15s ease",
                     flexWrap: "wrap",
                   }}
@@ -570,8 +539,9 @@ export function FormBuilder({
                           fontWeight: 600,
                           padding: "2px 8px",
                           borderRadius: "12px",
-                          background: "#f1f5f9",
-                          color: "#475569",
+                          background: field.fieldType === "image" ? "rgba(185, 28, 28, 0.1)" : "#f1f5f9",
+                          color: field.fieldType === "image" ? "var(--primary-700, #b91c1c)" : "#475569",
+                          border: field.fieldType === "image" ? "1px solid rgba(185, 28, 28, 0.2)" : "none",
                         }}
                       >
                         {getFieldTypeLabel(field.fieldType)}
@@ -580,7 +550,7 @@ export function FormBuilder({
                         <span
                           style={{
                             fontSize: "11px",
-                            fontWeight: 600,
+                            fontWeight: 700,
                             padding: "2px 7px",
                             borderRadius: "12px",
                             background: "rgba(220, 38, 38, 0.1)",
@@ -622,7 +592,7 @@ export function FormBuilder({
                         </span>
                       )}
                     </div>
-                    <strong style={{ fontSize: "13.5px", color: "var(--navy-900)" }}>{field.label}</strong>
+                    <strong style={{ fontSize: "14px", color: "var(--navy-900)" }}>{field.label}</strong>
                     {field.description && (
                       <p style={{ margin: "2px 0 0", fontSize: "12px", color: "var(--text-muted)" }}>{field.description}</p>
                     )}
@@ -742,13 +712,13 @@ export function FormBuilder({
             </div>
 
             <div className="form-group" style={{ gap: 4 }}>
-              <label style={{ fontSize: "13px", fontWeight: 600 }}>Status Formulir</label>
+              <label style={{ fontSize: "13px", fontWeight: 600 }}>Status Formulir Pendaftaran</label>
               <select
                 value={formSettings.status}
                 onChange={(e) => setFormSettings((p) => ({ ...p, status: e.target.value as "dibuka" | "ditutup" }))}
                 style={{ height: 40, padding: "8px 12px", fontSize: "13.5px" }}
               >
-                <option value="dibuka">🟢 Aktif — Formulir dibuka untuk publik</option>
+                <option value="dibuka">🟢 Aktif — Formulir dibuka untuk publik (Menerima pendaftar)</option>
                 <option value="ditutup">🔴 Nonaktif — Formulir ditutup (Draft / Tidak menerima pendaftar)</option>
               </select>
             </div>
@@ -764,7 +734,7 @@ export function FormBuilder({
                 gap: 8,
               }}
             >
-              <label style={{ fontSize: "13px", fontWeight: 600 }}>Link Akses Formulir Publik</label>
+              <label style={{ fontSize: "13px", fontWeight: 600 }}>Link Akses Formulir Publik Calon Anggota</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <input
                   readOnly
@@ -842,7 +812,7 @@ export function FormBuilder({
             <input
               value={fieldForm.label}
               onChange={(e) => setFieldForm((p) => ({ ...p, label: e.target.value }))}
-              placeholder="Contoh: Nama Lengkap / Tempat, Tanggal Lahir / Upload Foto Calon Anggota"
+              placeholder="Contoh: Nama Lengkap / Nomor WhatsApp / Pas Foto Calon Anggota"
               style={{ height: 40, padding: "8px 12px", fontSize: "13.5px" }}
             />
             {fieldErrors.label && <span style={{ fontSize: "12px", color: "#dc2626" }}>{fieldErrors.label}</span>}
@@ -851,7 +821,7 @@ export function FormBuilder({
           {/* Grid Tipe Input & Wajib Diisi */}
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
             <div className="form-group" style={{ gap: 4 }}>
-              <label style={{ fontSize: "13px", fontWeight: 600 }}>Tipe Input *</label>
+              <label style={{ fontSize: "13px", fontWeight: 600 }}>Tipe Input Pertanyaan *</label>
               <select
                 value={fieldForm.fieldType}
                 onChange={(e) => {
@@ -866,7 +836,7 @@ export function FormBuilder({
               >
                 {FIELD_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
-                    {t.label}
+                    {t.icon} {t.label}
                   </option>
                 ))}
               </select>
@@ -949,39 +919,31 @@ export function FormBuilder({
                 <span style={{ fontSize: "12px", color: "#dc2626" }}>{fieldErrors.options}</span>
               )}
 
-              {fieldForm.options.length === 0 ? (
-                <p style={{ margin: 0, fontSize: "12.5px", color: "var(--text-muted)" }}>
-                  Belum ada opsi pilihan. Klik "Tambah Opsi" di atas untuk menambahkan pilihan seperti Laki-laki, Perempuan, dsb.
-                </p>
-              ) : (
-                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                  {fieldForm.options.map((opt, idx) => (
-                    <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                      <input
-                        value={opt.label}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          setFieldForm((p) => ({
-                            ...p,
-                            options: p.options.map((o, i) => (i === idx ? { value: val, label: val } : o)),
-                          }));
-                        }}
-                        placeholder={`Pilihan ${idx + 1} (misal: Laki-laki / Mengerti)`}
-                        style={{ flex: 1, height: 36, padding: "6px 10px", fontSize: "13px" }}
-                      />
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-sm"
-                        onClick={() => removeOption(idx)}
-                        style={{ color: "#dc2626", padding: 6 }}
-                        title="Hapus opsi"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
+              {fieldForm.options.map((opt, idx) => (
+                <div key={idx} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <span style={{ fontSize: "12px", color: "var(--text-muted)", width: 20 }}>{idx + 1}.</span>
+                  <input
+                    value={opt.label}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFieldForm((p) => ({
+                        ...p,
+                        options: p.options.map((o, i) => (i === idx ? { value: val, label: val } : o)),
+                      }));
+                    }}
+                    placeholder={`Pilihan ${idx + 1}`}
+                    style={{ flex: 1, height: 36, padding: "6px 10px", fontSize: "13px" }}
+                  />
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    onClick={() => removeOption(idx)}
+                    style={{ padding: "6px", color: "#dc2626" }}
+                  >
+                    <X size={15} />
+                  </button>
                 </div>
-              )}
+              ))}
             </div>
           )}
 
@@ -998,176 +960,93 @@ export function FormBuilder({
                 gap: 12,
               }}
             >
-              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                <FileUp size={18} style={{ color: "var(--primary-700, #b91c1c)" }} />
-                <strong style={{ fontSize: "13px", color: "var(--navy-900)" }}>
-                  Pengaturan Berkas & Lampiran Contoh
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <Camera size={18} style={{ color: "var(--primary-700, #b91c1c)" }} />
+                <strong style={{ fontSize: "13.5px", color: "var(--navy-900)" }}>
+                  Pengaturan Khusus {fieldForm.fieldType === "image" ? "Pas Foto" : "Dokumen"}
                 </strong>
               </div>
 
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 <div className="form-group" style={{ gap: 4 }}>
-                  <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Maksimal Ukuran File (MB)</label>
-                  <input
-                    type="number"
-                    min="1"
-                    max="10"
+                  <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Batas Maksimal Ukuran (MB)</label>
+                  <select
                     value={fieldForm.maxFileSize}
-                    onChange={(e) => setFieldForm((p) => ({ ...p, maxFileSize: Number(e.target.value) || 2 }))}
-                    style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
-                  />
-                  <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
-                    Rekomendasi: 2 MB untuk foto, 5 MB untuk dokumen PDF.
-                  </span>
+                    onChange={(e) => setFieldForm((p) => ({ ...p, maxFileSize: Number(e.target.value) }))}
+                    style={{ height: 36, padding: "6px 10px", fontSize: "13px" }}
+                  >
+                    <option value={1}>1 MB</option>
+                    <option value={2}>2 MB (Rekomendasi Foto)</option>
+                    <option value={5}>5 MB (Rekomendasi Dokumen)</option>
+                  </select>
                 </div>
 
                 <div className="form-group" style={{ gap: 4 }}>
-                  <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Judul Gambar Contoh</label>
+                  <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Judul Foto Panduan (Opsional)</label>
                   <input
                     value={fieldForm.exampleImageTitle}
                     onChange={(e) => setFieldForm((p) => ({ ...p, exampleImageTitle: e.target.value }))}
-                    placeholder="Contoh: Contoh foto kartu identitas yang benar"
-                    style={{ height: 38, padding: "6px 10px", fontSize: "13px" }}
+                    placeholder="Contoh: Contoh pas foto 3x4 berseragam"
+                    style={{ height: 36, padding: "6px 10px", fontSize: "13px" }}
                   />
                 </div>
               </div>
 
-              {/* Upload Gambar Contoh Instruksi */}
-              <div
-                style={{
-                  background: "#ffffff",
-                  padding: "14px",
-                  borderRadius: "var(--radius-xs, 6px)",
-                  border: "1px solid var(--border, #e2e8f0)",
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: 10,
-                }}
-              >
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                  <label style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--navy-900)" }}>
-                    🖼️ Gambar Contoh / Panduan Visual (Opsional)
-                  </label>
-                  {fieldForm.exampleImageUrl && (
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => setFieldForm((p) => ({ ...p, exampleImageUrl: "" }))}
-                      style={{ color: "#dc2626", fontSize: "12px", padding: "2px 6px" }}
-                    >
-                      <Trash2 size={13} /> Hapus Foto
-                    </button>
-                  )}
-                </div>
-
-                {/* Input Pilihan: Unggah atau URL */}
-                <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                  <label
-                    className="btn btn-outline btn-sm"
-                    style={{
-                      cursor: compressingImage ? "not-allowed" : "pointer",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: 6,
-                      fontSize: "12.5px",
-                      opacity: compressingImage ? 0.6 : 1,
-                    }}
-                  >
-                    <Upload size={14} /> {compressingImage ? "Mengompresi Gambar..." : "Unggah Gambar dari Perangkat"}
-                    <input
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/jpg"
-                      disabled={compressingImage}
-                      onClick={(e) => {
-                        (e.currentTarget as HTMLInputElement).value = "";
-                      }}
-                      onChange={handleExampleImageUpload}
-                      style={{ display: "none" }}
-                    />
-                  </label>
-                  <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>atau</span>
-                  <div style={{ flex: 1, minWidth: 200 }}>
-                    <input
-                      value={fieldForm.exampleImageUrl.startsWith("data:image/") ? "" : fieldForm.exampleImageUrl}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        setFieldForm((p) => ({ ...p, exampleImageUrl: val }));
-                      }}
-                      placeholder="Tempel tautan URL gambar (https://...)"
-                      style={{ width: "100%", height: 34, padding: "4px 10px", fontSize: "12.5px", boxSizing: "border-box" }}
-                    />
-                  </div>
-                </div>
-
-                {/* Preview Gambar Contoh jika ada */}
-                {fieldForm.exampleImageUrl && (
-                  <div
-                    style={{
-                      marginTop: 4,
-                      padding: 10,
-                      background: "var(--bg, #f8fafc)",
-                      borderRadius: 8,
-                      border: "1px solid #e2e8f0",
-                      display: "flex",
-                      gap: 12,
-                      alignItems: "center",
-                    }}
-                  >
+              {/* Lampirkan Foto Panduan */}
+              <div className="form-group" style={{ gap: 6 }}>
+                <label style={{ fontSize: "12.5px", fontWeight: 600 }}>Foto Panduan / Contoh untuk Calon Anggota</label>
+                {fieldForm.exampleImageUrl ? (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                     <img
                       src={fieldForm.exampleImageUrl}
-                      alt="Contoh yang benar"
-                      onClick={() =>
-                        setPreviewImage({
-                          url: fieldForm.exampleImageUrl,
-                          title: fieldForm.exampleImageTitle || "Pratinjau Foto Contoh",
-                        })
-                      }
+                      alt="Contoh"
                       style={{
-                        width: 76,
-                        height: 56,
+                        width: 60,
+                        height: 75,
                         objectFit: "cover",
                         borderRadius: 6,
                         border: "1px solid #cbd5e1",
-                        background: "#ffffff",
-                        cursor: "pointer",
                       }}
-                      title="Klik untuk melihat foto layar penuh"
                     />
-                    <div style={{ flex: 1 }}>
-                      <strong style={{ fontSize: "12.5px", display: "block", color: "var(--navy-900)" }}>
-                        {fieldForm.exampleImageTitle || "Contoh Foto / Lampiran Visual"}
-                      </strong>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 2 }}>
-                        <span style={{ fontSize: "11.5px", color: "#059669" }}>
-                          {fieldForm.exampleImageUrl.startsWith("data:image/")
-                            ? "✓ Foto berhasil diunggah."
-                            : "✓ Tautan foto terpasang."}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setPreviewImage({
-                              url: fieldForm.exampleImageUrl,
-                              title: fieldForm.exampleImageTitle || "Pratinjau Foto Contoh",
-                            })
-                          }
-                          style={{
-                            background: "none",
-                            border: "none",
-                            padding: 0,
-                            color: "var(--primary-700, #b91c1c)",
-                            fontSize: "11.5px",
-                            fontWeight: 600,
-                            cursor: "pointer",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 3,
-                          }}
-                        >
-                          <Maximize2 size={11} /> Lihat Layar Penuh
-                        </button>
-                      </div>
+                    <div style={{ display: "flex", gap: 8 }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() =>
+                          setPreviewImage({
+                            url: fieldForm.exampleImageUrl,
+                            title: fieldForm.exampleImageTitle || "Foto Panduan",
+                          })
+                        }
+                      >
+                        <Eye size={13} /> Lihat Foto
+                      </button>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => setFieldForm((p) => ({ ...p, exampleImageUrl: "" }))}
+                        style={{ color: "#dc2626" }}
+                      >
+                        <Trash2 size={13} /> Hapus
+                      </button>
                     </div>
+                  </div>
+                ) : (
+                  <div>
+                    <label
+                      className="btn btn-outline btn-sm"
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", margin: 0 }}
+                    >
+                      <Upload size={14} />
+                      {compressingImage ? "Memproses Gambar..." : "Unggah Foto Panduan (HD)"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        style={{ display: "none" }}
+                        onChange={handleExampleImageUpload}
+                        disabled={compressingImage}
+                      />
+                    </label>
                   </div>
                 )}
               </div>
@@ -1176,7 +1055,16 @@ export function FormBuilder({
         </div>
       </Modal>
 
-      {/* FULLSCREEN LIGHTBOX PREVIEW */}
+      {/* CONFIRM DELETE PERTANYAAN */}
+      <ConfirmDialog
+        open={deletingField !== null}
+        title="Hapus Pertanyaan Formulir?"
+        message={`Pertanyaan "${deletingField?.label || ""}" akan dihapus dari formulir pendaftaran.`}
+        onConfirm={handleDeleteField}
+        onCancel={() => setDeletingField(null)}
+      />
+
+      {/* PREVIEW GAMBAR MODAL */}
       {previewImage &&
         createPortal(
           <div
@@ -1187,100 +1075,55 @@ export function FormBuilder({
               left: 0,
               right: 0,
               bottom: 0,
-              width: "100vw",
-              height: "100vh",
-              background: "rgba(5, 10, 20, 0.95)",
-              backdropFilter: "blur(12px)",
+              background: "rgba(0, 0, 0, 0.85)",
               display: "flex",
-              flexDirection: "column",
-              zIndex: 99999999,
-              animation: "modalFadeIn 0.2s ease-out",
-              userSelect: "none",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 9999999,
+              padding: 20,
             }}
           >
             <div
               onClick={(e) => e.stopPropagation()}
               style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                padding: "12px 20px",
-                background: "rgba(15, 23, 42, 0.85)",
-                borderBottom: "1px solid rgba(255, 255, 255, 0.12)",
-                color: "#ffffff",
+                maxWidth: 600,
+                width: "100%",
+                background: "#ffffff",
+                borderRadius: 14,
+                overflow: "hidden",
+                boxShadow: "0 24px 60px rgba(0,0,0,0.5)",
               }}
             >
-              <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>
-                📸 {previewImage.title || "Pratinjau Foto Contoh"}
-              </strong>
-              <button
-                type="button"
-                onClick={() => setPreviewImage(null)}
+              <div
                 style={{
-                  background: "rgba(239, 68, 68, 0.25)",
-                  border: "1px solid rgba(239, 68, 68, 0.5)",
-                  color: "#fca5a5",
-                  borderRadius: "6px",
-                  padding: "6px 14px",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "inline-flex",
+                  padding: "14px 18px",
+                  borderBottom: "1px solid #e2e8f0",
+                  display: "flex",
+                  justifyContent: "space-between",
                   alignItems: "center",
-                  gap: 6,
                 }}
               >
-                <X size={15} /> <span>Tutup</span>
-              </button>
-            </div>
-            <div
-              style={{
-                flex: 1,
-                overflow: "auto",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: "20px",
-              }}
-            >
-              <img
-                src={previewImage.url}
-                alt="Pratinjau Penuh"
-                referrerPolicy={previewImage.url.startsWith("http") ? "no-referrer" : undefined}
-                onError={(e) => {
-                  const currentSrc = e.currentTarget.src;
-                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
-                  }
-                }}
-                style={{
-                  maxWidth: "95vw",
-                  maxHeight: "85vh",
-                  objectFit: "contain",
-                  borderRadius: 10,
-                  boxShadow: "0 25px 60px rgba(0, 0, 0, 0.8)",
-                }}
-              />
+                <strong style={{ fontSize: "14px" }}>📸 {previewImage.title}</strong>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => setPreviewImage(null)}
+                  style={{ padding: "4px 8px" }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div style={{ padding: 20, textAlign: "center", background: "#0f172a" }}>
+                <img
+                  src={previewImage.url}
+                  alt={previewImage.title}
+                  style={{ maxWidth: "100%", maxHeight: "70vh", objectFit: "contain", borderRadius: 8 }}
+                />
+              </div>
             </div>
           </div>,
           document.body
         )}
-
-      {/* DIALOG KONFIRMASI HAPUS PERTANYAAN */}
-      <ConfirmDialog
-        open={deletingField !== null}
-        title="Hapus Pertanyaan Formulir?"
-        message={`Pertanyaan "${deletingField?.label}" akan dihapus dari formulir pendaftaran.`}
-        loading={false}
-        onConfirm={handleDeleteField}
-        onCancel={() => setDeletingField(null)}
-      />
     </div>
   );
-}
-
-function getFieldTypeLabel(type: RekrutmenFieldType): string {
-  const found = FIELD_TYPES.find((t) => t.value === type);
-  return found?.label ?? type;
 }

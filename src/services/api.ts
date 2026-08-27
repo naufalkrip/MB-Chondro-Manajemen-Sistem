@@ -964,10 +964,131 @@ export function fileToBase64(file: File): Promise<string> {
 }
 
 /**
- * Mengompres gambar menjadi format JPEG resolusi tajam (hingga 800-1080px)
- * yang aman (<= 42.000 karakter) dengan latar putih agar gambar transparan (PNG) tidak menjadi hitam.
+ * In-memory / Session cache untuk foto yang di-resolve dari Google Drive
  */
-export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<string> {
+const resolvedPhotoCache = new Map<string, string>();
+
+export function getCachedResolvedPhoto(key: string): string | undefined {
+  if (!key) return undefined;
+  return resolvedPhotoCache.get(key);
+}
+
+export function setCachedResolvedPhoto(key: string, base64: string): void {
+  if (!key || !base64) return;
+  resolvedPhotoCache.set(key, base64);
+}
+
+/**
+ * Ekstraksi informasi pas foto calon anggota secara cerdas dan mendalam
+ * dari seluruh daftar jawaban pendaftar (kebal terhadap variasi nama label pertanyaan).
+ */
+export function extractCandidatePhotoInfo(answers: Array<{
+  id?: string;
+  fieldId?: string;
+  value?: string;
+  fileUrl?: string | null;
+  fileBase64?: string | null;
+  fileName?: string | null;
+  fileType?: string | null;
+  field?: { label?: string; fieldType?: string };
+}>): {
+  url: string | null;
+  fileName: string | null;
+  label: string;
+  answerId?: string;
+  isBase64: boolean;
+  isDrive: boolean;
+  driveFileId?: string;
+} {
+  if (!Array.isArray(answers) || answers.length === 0) {
+    return {
+      url: null,
+      fileName: null,
+      label: "Foto Calon Anggota",
+      isBase64: false,
+      isDrive: false,
+    };
+  }
+
+  // Cari jawaban yang cocok dengan kriteria pas foto calon
+  const photoAnswer = answers.find((a) => {
+    const label = (a.field?.label || "").toLowerCase();
+    const fType = a.field?.fieldType || "";
+    const mime = (a.fileType || "").toLowerCase();
+    const fName = (a.fileName || "").toLowerCase();
+    const val = (a.value || "");
+    const fUrl = (a.fileUrl || a.fileBase64 || "");
+
+    const isExplicitPhotoField =
+      fType === "image" ||
+      label.includes("pas foto") ||
+      label.includes("foto") ||
+      label.includes("photo") ||
+      label.includes("profil") ||
+      label.includes("selfie") ||
+      label.includes("foto diri");
+
+    const isImageFile =
+      mime.startsWith("image/") ||
+      /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(fName) ||
+      /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(val);
+
+    const hasImageData =
+      fUrl.startsWith("data:image/") ||
+      fUrl.includes("drive.google.com") ||
+      fUrl.includes("googleusercontent.com") ||
+      val.startsWith("data:image/") ||
+      val.includes("drive.google.com");
+
+    return isExplicitPhotoField || (fType === "file" && (isImageFile || hasImageData)) || (isImageFile && hasImageData);
+  });
+
+  if (!photoAnswer) {
+    return {
+      url: null,
+      fileName: null,
+      label: "Foto Calon Anggota",
+      isBase64: false,
+      isDrive: false,
+    };
+  }
+
+  let finalUrl = photoAnswer.fileUrl || photoAnswer.fileBase64 || null;
+  if (!finalUrl && photoAnswer.value) {
+    if (photoAnswer.value.startsWith("data:image/") || photoAnswer.value.startsWith("http")) {
+      finalUrl = photoAnswer.value;
+    }
+  }
+
+  const isBase64 = Boolean(finalUrl && finalUrl.startsWith("data:image/"));
+  const isDrive = Boolean(
+    finalUrl &&
+    (finalUrl.includes("drive.google.com") || finalUrl.includes("googleusercontent.com"))
+  );
+
+  let driveFileId: string | undefined = undefined;
+  if (finalUrl) {
+    const match = finalUrl.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+    if (match) driveFileId = match[1];
+  }
+
+  return {
+    url: finalUrl,
+    fileName: photoAnswer.fileName || photoAnswer.value || "foto_calon.jpg",
+    label: photoAnswer.field?.label || "Pas Foto Calon Anggota",
+    answerId: photoAnswer.id,
+    isBase64,
+    isDrive,
+    driveFileId,
+  };
+}
+
+/**
+ * Mengompres gambar menjadi format JPEG resolusi tajam (400x500 hingga 600x800)
+ * dengan ukuran aman (<= 28.000 karakter Base64 / ~21 KB) dengan latar putih solid
+ * agar 100% muat di sel Google Sheets tanpa risiko terpotong dan transparan PNG tidak menghitam.
+ */
+export function compressImageToSafeHd(file: File, maxChars = 28000): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
@@ -979,8 +1100,8 @@ export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<str
       const img = new Image();
       img.onerror = () => reject(new Error("Format gambar tidak valid atau rusak."));
       img.onload = () => {
-        let maxDim = 800;
-        let quality = 0.78;
+        let maxDim = 720;
+        let quality = 0.76;
         const canvas = document.createElement("canvas");
         const ctx = canvas.getContext("2d");
         if (!ctx) {
@@ -989,8 +1110,8 @@ export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<str
 
         let result = "";
         for (let attempt = 0; attempt < 8; attempt++) {
-          let width = img.width || 800;
-          let height = img.height || 600;
+          let width = img.width || 600;
+          let height = img.height || 800;
           if (width > maxDim || height > maxDim) {
             if (width > height) {
               height = Math.round((height * maxDim) / width);
@@ -1004,7 +1125,7 @@ export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<str
           canvas.height = height;
           ctx.imageSmoothingEnabled = true;
           ctx.imageSmoothingQuality = "high";
-          // Selalu isi background putih agar gambar transparan (PNG) tidak menjadi hitam
+          // Latar belakang putih solid agar gambar transparan (PNG) tidak menjadi hitam
           ctx.fillStyle = "#ffffff";
           ctx.fillRect(0, 0, width, height);
           ctx.drawImage(img, 0, 0, width, height);
@@ -1013,8 +1134,8 @@ export function compressImageToSafeHd(file: File, maxChars = 38000): Promise<str
           if (result.length <= maxChars) {
             break;
           }
-          maxDim = Math.round(maxDim * 0.82);
-          quality = Math.max(0.55, quality - 0.08);
+          maxDim = Math.round(maxDim * 0.84);
+          quality = Math.max(0.52, quality - 0.07);
         }
         resolve(result || dataUrl);
       };

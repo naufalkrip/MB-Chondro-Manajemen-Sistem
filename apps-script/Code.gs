@@ -1587,78 +1587,22 @@ function resolveCandidateAnswerPhoto(ans) {
   var valueStr = String(ans.value || "");
   var fileName = String(ans.fileName || "");
 
-  // 1. Jika sudah berupa Data URL yang valid dan utuh (> 2000 karakter)
-  if (fileUrl.indexOf("data:image/") === 0 && fileUrl.length > 2000) {
+  // 1. Jika sudah berupa Data URL Base64 yang valid
+  if (fileUrl.indexOf("data:image/") === 0 && fileUrl.length > 500) {
     return ans;
   }
-  if (valueStr.indexOf("data:image/") === 0 && valueStr.length > 2000) {
+  if (valueStr.indexOf("data:image/") === 0 && valueStr.length > 500) {
     ans.fileUrl = valueStr;
     return ans;
   }
 
-  // 2. Cari fileId dari semua kemungkinan string URL
-  var sources = [fileUrl, valueStr];
-  var fileId = "";
-  for (var s = 0; s < sources.length; s++) {
-    var match = sources[s].match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
-    if (match) {
-      fileId = match[1];
-      break;
-    }
+  // 2. Jika fileUrl adalah HTTP URL (misal Google Drive thumbnail/lh3)
+  if (fileUrl.indexOf("http") === 0) {
+    return ans;
   }
-
-  if (fileId) {
-    try {
-      var file = DriveApp.getFileById(fileId);
-      if (file) {
-        var blob = file.getBlob();
-        var bytes = blob.getBytes();
-        if (bytes.length <= 4000000) {
-          ans.fileUrl = "data:" + (blob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes);
-          return ans;
-        }
-      }
-    } catch (e) {}
-  }
-
-  // 3. Cari berdasarkan nama file di Google Drive (Folder pendaftar atau global Drive search)
-  var nameCandidates = [];
-  if (fileName) nameCandidates.push(fileName);
-  if (valueStr && valueStr.match(/\.(jpe?g|png|webp|gif)$/i)) nameCandidates.push(valueStr);
-  if (ans.id) {
-    nameCandidates.push("foto_" + ans.id + ".jpg");
-    nameCandidates.push("berkas_" + ans.id + ".jpg");
-  }
-
-  for (var n = 0; n < nameCandidates.length; n++) {
-    var targetName = nameCandidates[n];
-    try {
-      var folders = DriveApp.getFoldersByName("MB Chondro Berkas Pendaftar");
-      while (folders.hasNext()) {
-        var folder = folders.next();
-        var files = folder.getFilesByName(targetName);
-        if (files.hasNext()) {
-          var targetFile = files.next();
-          var blob2 = targetFile.getBlob();
-          var bytes2 = blob2.getBytes();
-          if (bytes2.length <= 4000000) {
-            ans.fileUrl = "data:" + (blob2.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(bytes2);
-            return ans;
-          }
-        }
-      }
-
-      var globalFiles = DriveApp.getFilesByName(targetName);
-      if (globalFiles.hasNext()) {
-        var gFile = globalFiles.next();
-        var gBlob = gFile.getBlob();
-        var gBytes = gBlob.getBytes();
-        if (gBytes.length <= 4000000) {
-          ans.fileUrl = "data:" + (gBlob.getContentType() || "image/jpeg") + ";base64," + Utilities.base64Encode(gBytes);
-          return ans;
-        }
-      }
-    } catch (e2) {}
+  if (valueStr.indexOf("http") === 0) {
+    ans.fileUrl = valueStr;
+    return ans;
   }
 
   return ans;

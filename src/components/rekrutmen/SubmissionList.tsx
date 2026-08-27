@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import {
   Eye,
@@ -11,6 +11,14 @@ import {
   FileText,
   ZoomIn,
   Check,
+  LayoutGrid,
+  List,
+  Camera,
+  Phone,
+  Calendar,
+  Sparkles,
+  MessageCircle,
+  RotateCw,
 } from "lucide-react";
 import type {
   RekrutmenSubmissionWithAnswers,
@@ -27,7 +35,14 @@ import { Filter as FilterComp } from "../ui/Filter";
 import { Modal } from "../ui/Modal";
 import { ConfirmDialog } from "../ui/ConfirmDialog";
 import { laporanRekrutmen, laporanRekrutmenDetail } from "../../services/pdf";
-import { getRekrutmenImageBase64Item, updateRekrutmenAnswerPhotoItem, compressImageToSafeHd } from "../../services/api";
+import {
+  getRekrutmenImageBase64Item,
+  updateRekrutmenAnswerPhotoItem,
+  compressImageToSafeHd,
+  extractCandidatePhotoInfo,
+  getCachedResolvedPhoto,
+  setCachedResolvedPhoto,
+} from "../../services/api";
 import { useToast } from "../../contexts/ToastContext";
 
 interface SubmissionListProps {
@@ -48,28 +63,28 @@ const STATUS_CONFIG: Record<
     label: "Menunggu",
     bg: "rgba(217, 119, 6, 0.1)",
     color: "#d97706",
-    border: "rgba(217, 119, 6, 0.25)",
+    border: "rgba(217, 119, 6, 0.28)",
     icon: Clock,
   },
   lolos: {
     label: "Lolos",
-    bg: "rgba(16, 185, 129, 0.1)",
+    bg: "rgba(16, 185, 129, 0.12)",
     color: "#059669",
-    border: "rgba(16, 185, 129, 0.25)",
+    border: "rgba(16, 185, 129, 0.3)",
     icon: CheckCircle,
   },
   cadangan: {
     label: "Cadangan",
     bg: "rgba(37, 99, 235, 0.1)",
     color: "#2563eb",
-    border: "rgba(37, 99, 235, 0.25)",
+    border: "rgba(37, 99, 235, 0.28)",
     icon: Bookmark,
   },
   tidak_lolos: {
     label: "Tidak Lolos",
     bg: "rgba(220, 38, 38, 0.1)",
     color: "#dc2626",
-    border: "rgba(220, 38, 38, 0.25)",
+    border: "rgba(220, 38, 38, 0.28)",
     icon: XCircle,
   },
 };
@@ -94,6 +109,196 @@ const PILIHAN_TAHUN = Array.from({ length: 8 }, (_, i) => currentYear - 4 + i);
 
 type PdfMode = "" | "bulan" | "custom";
 
+/**
+ * Komponen Pas Foto Calon Anggota Cerdas
+ * dengan dukungan Multi-Tier Fallback (Base64 -> Google Drive CDN -> Backend Base64 Resolver -> Inisial Elegan).
+ */
+function CandidatePhotoBadge({
+  answers,
+  candidateName,
+  size = "md",
+  onClick,
+}: {
+  answers: Array<{
+    id?: string;
+    fieldId?: string;
+    value?: string;
+    fileUrl?: string | null;
+    fileBase64?: string | null;
+    fileName?: string | null;
+    fileType?: string | null;
+    field?: { label?: string; fieldType?: string };
+  }>;
+  candidateName: string;
+  size?: "sm" | "md" | "lg" | "xl";
+  onClick?: (url: string, title: string, fileName?: string) => void;
+}) {
+  const photoInfo = useMemo(() => extractCandidatePhotoInfo(answers), [answers]);
+  const [currentSrc, setCurrentSrc] = useState<string | null>(photoInfo.url);
+  const [loadingFallback, setLoadingFallback] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+
+  useEffect(() => {
+    // Cek apakah ada foto ter-cache
+    if (photoInfo.driveFileId) {
+      const cached = getCachedResolvedPhoto(photoInfo.driveFileId);
+      if (cached) {
+        setCurrentSrc(cached);
+        return;
+      }
+    }
+    setCurrentSrc(photoInfo.url);
+    setLoadError(false);
+  }, [photoInfo]);
+
+  const handleImageError = async () => {
+    // Jika link Google Drive standar gagal dimuat, coba gunakan endpoint resolver
+    if (photoInfo.driveFileId && !loadingFallback && !loadError) {
+      setLoadingFallback(true);
+      const res = await getRekrutmenImageBase64Item({
+        fileId: photoInfo.driveFileId,
+        fileName: photoInfo.fileName || undefined,
+      });
+      setLoadingFallback(false);
+      if (res.success && res.base64) {
+        setCachedResolvedPhoto(photoInfo.driveFileId, res.base64);
+        setCurrentSrc(res.base64);
+        setLoadError(false);
+      } else {
+        setLoadError(true);
+      }
+    } else {
+      setLoadError(true);
+    }
+  };
+
+  const dimensions = {
+    sm: { w: 36, h: 46, radius: 6, fontSize: 13, iconSize: 14 },
+    md: { w: 46, h: 58, radius: 8, fontSize: 15, iconSize: 16 },
+    lg: { w: 72, h: 92, radius: 10, fontSize: 22, iconSize: 22 },
+    xl: { w: 120, h: 150, radius: 12, fontSize: 32, iconSize: 32 },
+  }[size];
+
+  const initial = (candidateName || "C").trim().charAt(0).toUpperCase();
+
+  const isPhotoAvailable = Boolean(currentSrc && !loadError);
+
+  return (
+    <div
+      style={{
+        position: "relative",
+        width: dimensions.w,
+        height: dimensions.h,
+        borderRadius: dimensions.radius,
+        flexShrink: 0,
+        overflow: "hidden",
+        boxShadow: "0 2px 8px rgba(15, 23, 42, 0.08)",
+        border: isPhotoAvailable ? "1.5px solid #cbd5e1" : "1.5px dashed #cbd5e1",
+        background: isPhotoAvailable ? "#0f172a" : "linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)",
+        cursor: isPhotoAvailable && onClick ? "pointer" : "default",
+        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+      }}
+      onClick={(e) => {
+        if (isPhotoAvailable && onClick && currentSrc) {
+          e.stopPropagation();
+          onClick(currentSrc, `Pas Foto: ${candidateName}`, photoInfo.fileName || undefined);
+        }
+      }}
+      title={isPhotoAvailable ? `Klik untuk memperbesar Pas Foto ${candidateName}` : `Belum ada pas foto untuk ${candidateName}`}
+    >
+      {isPhotoAvailable && currentSrc ? (
+        <>
+          <img
+            src={currentSrc}
+            alt={`Foto ${candidateName}`}
+            referrerPolicy="no-referrer"
+            onError={handleImageError}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+              display: "block",
+              transition: "transform 0.3s ease",
+            }}
+            onMouseEnter={(e) => {
+              if (size !== "sm") e.currentTarget.style.transform = "scale(1.08)";
+            }}
+            onMouseLeave={(e) => {
+              if (size !== "sm") e.currentTarget.style.transform = "scale(1)";
+            }}
+          />
+          {/* Zoom Overlay Badge */}
+          {size !== "sm" && (
+            <div
+              style={{
+                position: "absolute",
+                bottom: 3,
+                right: 3,
+                background: "rgba(0, 0, 0, 0.65)",
+                color: "#ffffff",
+                borderRadius: 4,
+                padding: "2px 4px",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                backdropFilter: "blur(4px)",
+              }}
+            >
+              <ZoomIn size={11} />
+            </div>
+          )}
+        </>
+      ) : loadingFallback ? (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 4,
+            color: "#64748b",
+          }}
+        >
+          <RotateCw size={dimensions.iconSize} className="spinning" />
+        </div>
+      ) : (
+        <div
+          style={{
+            width: "100%",
+            height: "100%",
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            justifyContent: "center",
+            color: "var(--primary-700, #b91c1c)",
+            fontWeight: 800,
+            fontSize: dimensions.fontSize,
+            position: "relative",
+            background: "linear-gradient(135deg, rgba(185, 28, 28, 0.06) 0%, rgba(185, 28, 28, 0.12) 100%)",
+          }}
+        >
+          <span>{initial}</span>
+          <span
+            style={{
+              position: "absolute",
+              bottom: 2,
+              fontSize: "8.5px",
+              color: "#94a3b8",
+              fontWeight: 600,
+              textTransform: "uppercase",
+              letterSpacing: "0.2px",
+            }}
+          >
+            {size !== "sm" ? "No Foto" : ""}
+          </span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SubmissionList({
   form,
   submissions,
@@ -107,6 +312,7 @@ export function SubmissionList({
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState<RekrutmenSubmissionStatus | "">("");
   const [filterPeriode, setFilterPeriode] = useState<string>("");
+  const [viewMode, setViewMode] = useState<"table" | "cards">("table");
 
   const [detailOpen, setDetailOpen] = useState<RekrutmenSubmissionWithAnswers | null>(null);
   const [deleteOpen, setDeleteOpen] = useState<RekrutmenSubmissionWithAnswers | null>(null);
@@ -182,7 +388,7 @@ export function SubmissionList({
 
         return true;
       })
-      .sort((a, b) => (a.submittedAt || "").localeCompare(b.submittedAt || ""));
+      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
   }, [safeSubmissions, search, filterStatus, filterPeriode]);
 
   const pdfRange = useMemo(() => {
@@ -299,13 +505,12 @@ export function SubmissionList({
     const isImage =
       ans.field?.fieldType === "image" ||
       ans.fileType?.startsWith("image/") ||
-      ans.field?.label?.toLowerCase().includes("foto") ||
+      (ans.field?.label || "").toLowerCase().includes("foto") ||
       Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
       fileUrl.startsWith("data:image/") ||
       /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) ||
       fileUrl.includes("drive.google.com") ||
-      fileUrl.includes("lh3.googleusercontent") ||
-      fileUrl.includes("thumbnail");
+      fileUrl.includes("lh3.googleusercontent");
 
     if (isImage) {
       openPhotoLightbox(
@@ -380,100 +585,101 @@ export function SubmissionList({
     }
   };
 
+  // Helper untuk mengambil nama & kontak calon
+  const getCandidateInfo = (s: RekrutmenSubmissionWithAnswers) => {
+    const namaField = s.answers.find((a) => (a.field?.label || "").toLowerCase().includes("nama"));
+    const nama = namaField?.value?.trim() || "Calon Anggota";
+
+    const hpField = s.answers.find(
+      (a) =>
+        (a.field?.label || "").toLowerCase().includes("hp") ||
+        (a.field?.label || "").toLowerCase().includes("telepon") ||
+        (a.field?.label || "").toLowerCase().includes("whatsapp") ||
+        (a.field?.label || "").toLowerCase().includes("wa")
+    );
+    const hp = hpField?.value?.trim() || "-";
+
+    const cleanHp = hp.replace(/[^0-9]/g, "");
+    const waUrl = cleanHp ? `https://wa.me/${cleanHp.startsWith("0") ? "62" + cleanHp.slice(1) : cleanHp}` : null;
+
+    return { nama, hp, waUrl };
+  };
+
+  // Definisi Kolom Tabel yang Rapi dengan Penekanan Pas Foto
   const columns: Column<RekrutmenSubmissionWithAnswers>[] = [
     {
       key: "no",
       header: "No",
-      render: (_r, idx) => <span style={{ fontWeight: 600, color: "var(--text-muted)" }}>{idx + 1}</span>,
+      render: (_r, idx) => <span style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "13px" }}>{idx + 1}</span>,
+    },
+    {
+      key: "foto",
+      header: "Pas Foto",
+      render: (s) => {
+        const { nama } = getCandidateInfo(s);
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <CandidatePhotoBadge
+              answers={s.answers}
+              candidateName={nama}
+              size="md"
+              onClick={(url, title, fileName) => openPhotoLightbox(url, title, fileName)}
+            />
+          </div>
+        );
+      },
     },
     {
       key: "nama",
       header: "Nama Calon Anggota",
       render: (s) => {
-        const namaField = s.answers.find((a) => a.field?.label?.toLowerCase().includes("nama"));
-        const fotoField = s.answers.find(
-          (a) =>
-            a.field?.fieldType === "image" ||
-            a.fileType?.startsWith("image/") ||
-            a.field?.label?.toLowerCase().includes("foto") ||
-            Boolean(a.fileName && /\.(jpe?g|png|webp|gif)$/i.test(a.fileName)) ||
-            (a.fileUrl && (a.fileUrl.startsWith("http") || a.fileUrl.startsWith("data:image/"))) ||
-            (a.value && (a.value.startsWith("http") || a.value.startsWith("data:image/")))
-        );
-        const fotoUrl = fotoField?.fileUrl || (fotoField?.value && (fotoField.value.startsWith("http") || fotoField.value.startsWith("data:image/")) ? fotoField.value : null);
-
+        const { nama } = getCandidateInfo(s);
         return (
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {fotoUrl ? (
-              <img
-                src={fotoUrl}
-                alt="Foto"
-                referrerPolicy={fotoUrl.startsWith("http") ? "no-referrer" : undefined}
-                onError={(e) => {
-                  const currentSrc = e.currentTarget.src;
-                  const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                  if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                    e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
-                  }
-                }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  openPhotoLightbox(fotoUrl, namaField?.value || "Foto Calon Anggota", fotoField?.fileName || fotoField?.value);
-                }}
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  objectFit: "cover",
-                  border: "1px solid #cbd5e1",
-                  cursor: "pointer",
-                  background: "#f1f5f9",
-                }}
-                title="Klik untuk melihat foto"
-              />
-            ) : (
-              <div
-                style={{
-                  width: 34,
-                  height: 34,
-                  borderRadius: "50%",
-                  background: "rgba(185, 28, 28, 0.08)",
-                  color: "var(--primary-700, #b91c1c)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  fontSize: "13px",
-                  fontWeight: 700,
-                  flexShrink: 0,
-                }}
-              >
-                {(namaField?.value || "C")[0].toUpperCase()}
-              </div>
-            )}
-            <div>
-              <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block" }}>
-                {namaField ? namaField.value : "Calon Anggota"}
-              </strong>
-            </div>
+          <div>
+            <strong style={{ fontSize: "14px", color: "var(--navy-900)", display: "block", fontWeight: 700 }}>
+              {nama}
+            </strong>
+            <span style={{ fontSize: "11.5px", color: "var(--text-muted)" }}>
+              ID: {s.id}
+            </span>
           </div>
         );
       },
     },
     {
       key: "hp",
-      header: "No. WhatsApp / HP",
+      header: "Kontak WhatsApp",
       render: (s) => {
-        const hpField = s.answers.find(
-          (a) =>
-            a.field.label.toLowerCase().includes("hp") ||
-            a.field.label.toLowerCase().includes("telepon") ||
-            a.field.label.toLowerCase().includes("whatsapp") ||
-            a.field.label.toLowerCase().includes("wa")
-        );
+        const { hp, waUrl } = getCandidateInfo(s);
         return (
-          <span style={{ fontSize: "13px", color: "#475569" }}>
-            {hpField?.value || "-"}
-          </span>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            {waUrl ? (
+              <a
+                href={waUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 5,
+                  fontSize: "13px",
+                  color: "#059669",
+                  fontWeight: 600,
+                  textDecoration: "none",
+                  padding: "3px 8px",
+                  background: "rgba(16, 185, 129, 0.08)",
+                  borderRadius: 6,
+                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                }}
+                title="Chat via WhatsApp"
+              >
+                <MessageCircle size={13} /> {hp}
+              </a>
+            ) : (
+              <span style={{ fontSize: "13px", color: "#64748b" }}>{hp}</span>
+            )}
+          </div>
         );
       },
     },
@@ -501,7 +707,7 @@ export function SubmissionList({
               padding: "4px 10px",
               borderRadius: "20px",
               fontSize: "12px",
-              fontWeight: 600,
+              fontWeight: 700,
               background: conf.bg,
               color: conf.color,
               border: `1px solid ${conf.border}`,
@@ -528,8 +734,8 @@ export function SubmissionList({
               e.stopPropagation();
               setDetailOpen(s);
             }}
-            title="Lihat Detail Pendaftaran"
-            style={{ padding: "6px" }}
+            title="Lihat Detail Profil Calon"
+            style={{ padding: "6px", color: "var(--navy-900)" }}
           >
             <Eye size={16} />
           </button>
@@ -544,6 +750,18 @@ export function SubmissionList({
             style={{ padding: "6px", color: "var(--primary-700, #b91c1c)" }}
           >
             <Check size={16} />
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleDownloadDetailPdf(s);
+            }}
+            title="Unduh PDF Calon"
+            style={{ padding: "6px", color: "#0284c7" }}
+          >
+            <Download size={15} />
           </button>
           <button
             type="button"
@@ -570,37 +788,57 @@ export function SubmissionList({
         style={{
           background: "linear-gradient(135deg, #c8101e 0%, #a41111 50%, #8a1414 100%)",
           borderRadius: "var(--radius-lg, 14px)",
-          padding: "14px 20px",
+          padding: "16px 20px",
           color: "#ffffff",
           boxShadow: "0 6px 20px rgba(185, 28, 28, 0.22)",
           width: "100%",
           boxSizing: "border-box",
         }}
       >
-        <div>
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              opacity: 0.88,
-            }}
-          >
-            SELEKSI CALON ANGGOTA
-          </span>
-          <h3 style={{ fontSize: "1.2rem", fontWeight: 700, margin: "2px 0 0", color: "#ffffff" }}>
-            Daftar Calon Anggota MB Chondro
-          </h3>
-          <p style={{ fontSize: "12px", color: "rgba(255, 255, 255, 0.9)", margin: "2px 0 0" }}>
-            {loading
-              ? "Memuat data pendaftar..."
-              : `Menampilkan ${filtered.length} dari ${safeSubmissions.length} calon anggota yang telah mengirim formulir`}
-          </p>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 12 }}>
+          <div>
+            <span
+              style={{
+                fontSize: "11px",
+                fontWeight: 600,
+                textTransform: "uppercase",
+                letterSpacing: "0.5px",
+                opacity: 0.88,
+              }}
+            >
+              SELEKSI CALON ANGGOTA MB CHONDRO
+            </span>
+            <h3 style={{ fontSize: "1.25rem", fontWeight: 700, margin: "2px 0 0", color: "#ffffff" }}>
+              Daftar Calon Anggota & Berkas Pendaftaran
+            </h3>
+            <p style={{ fontSize: "12.5px", color: "rgba(255, 255, 255, 0.9)", margin: "3px 0 0" }}>
+              {loading
+                ? "Memuat data pendaftar..."
+                : `Menampilkan ${filtered.length} dari ${safeSubmissions.length} calon anggota yang telah mengirim formulir lengkap`}
+            </p>
+          </div>
+
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button
+              type="button"
+              className="btn btn-outline btn-sm"
+              onClick={() => setPdfOpen(true)}
+              style={{
+                color: "#ffffff",
+                borderColor: "rgba(255, 255, 255, 0.35)",
+                background: "rgba(255, 255, 255, 0.12)",
+                backdropFilter: "blur(6px)",
+                fontSize: "12.5px",
+                fontWeight: 600,
+              }}
+            >
+              <Download size={14} /> Cetak Rekapitulasi PDF
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Main Table Card (Full Width) */}
+      {/* Main Container Card (Full Width) */}
       <div
         className="card"
         style={{
@@ -613,7 +851,7 @@ export function SubmissionList({
           boxSizing: "border-box",
         }}
       >
-        {/* Toolbar Filters */}
+        {/* Toolbar Filters & View Switcher */}
         <div
           className="toolbar"
           style={{
@@ -622,73 +860,326 @@ export function SubmissionList({
             gap: 10,
             marginBottom: 16,
             alignItems: "center",
+            justifyContent: "space-between",
           }}
         >
-          <SearchBar
-            value={search}
-            onChange={setSearch}
-            placeholder="Cari nama calon anggota..."
-          />
-          <FilterComp
-            label="Status"
-            value={filterStatus}
-            onChange={(val) => setFilterStatus(val as RekrutmenSubmissionStatus | "")}
-            options={[
-              { value: "", label: "Semua Status" },
-              { value: "menunggu", label: "Menunggu (🟡)" },
-              { value: "lolos", label: "Lolos (🟢)" },
-              { value: "cadangan", label: "Cadangan (🔵)" },
-              { value: "tidak_lolos", label: "Tidak Lolos (🔴)" },
-            ]}
-          />
-          <FilterComp
-            label="Periode"
-            value={filterPeriode}
-            onChange={setFilterPeriode}
-            options={[
-              { value: "", label: "Semua Periode" },
-              { value: "hariIni", label: "Hari Ini" },
-              { value: "mingguIni", label: "7 Hari Terakhir" },
-              { value: "bulanIni", label: "Bulan Ini" },
-            ]}
-          />
-          <div style={{ marginLeft: "auto" }}>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "center", flex: "1 1 auto" }}>
+            <SearchBar
+              value={search}
+              onChange={setSearch}
+              placeholder="Cari nama calon, jawaban, atau kontak..."
+            />
+            <FilterComp
+              label="Status"
+              value={filterStatus}
+              onChange={(val) => setFilterStatus(val as RekrutmenSubmissionStatus | "")}
+              options={[
+                { value: "", label: "Semua Status" },
+                { value: "menunggu", label: "Menunggu (🟡)" },
+                { value: "lolos", label: "Lolos (🟢)" },
+                { value: "cadangan", label: "Cadangan (🔵)" },
+                { value: "tidak_lolos", label: "Tidak Lolos (🔴)" },
+              ]}
+            />
+            <FilterComp
+              label="Periode"
+              value={filterPeriode}
+              onChange={setFilterPeriode}
+              options={[
+                { value: "", label: "Semua Periode" },
+                { value: "hariIni", label: "Hari Ini" },
+                { value: "mingguIni", label: "7 Hari Terakhir" },
+                { value: "bulanIni", label: "Bulan Ini" },
+              ]}
+            />
+          </div>
+
+          {/* View Mode Toggle: Table vs Cards */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              background: "#f1f5f9",
+              padding: 3,
+              borderRadius: 8,
+              border: "1px solid #e2e8f0",
+              marginLeft: "auto",
+            }}
+          >
             <button
               type="button"
-              className="btn btn-outline btn-sm"
-              onClick={() => setPdfOpen(true)}
+              onClick={() => setViewMode("table")}
+              title="Tampilan Tabel Rapi"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
-                gap: 6,
-                fontSize: "12.5px",
+                gap: 5,
+                padding: "6px 10px",
+                borderRadius: 6,
+                border: "none",
+                fontSize: "12px",
                 fontWeight: 600,
-                color: "var(--primary-700, #b91c1c)",
+                cursor: "pointer",
+                background: viewMode === "table" ? "#ffffff" : "transparent",
+                color: viewMode === "table" ? "var(--primary-700, #b91c1c)" : "#64748b",
+                boxShadow: viewMode === "table" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.15s ease",
               }}
             >
-              <Download size={14} /> Download PDF
+              <List size={14} /> Tabel
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("cards")}
+              title="Tampilan Kartu Calon (Foto Menonjol)"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 5,
+                padding: "6px 10px",
+                borderRadius: 6,
+                border: "none",
+                fontSize: "12px",
+                fontWeight: 600,
+                cursor: "pointer",
+                background: viewMode === "cards" ? "#ffffff" : "transparent",
+                color: viewMode === "cards" ? "var(--primary-700, #b91c1c)" : "#64748b",
+                boxShadow: viewMode === "cards" ? "0 1px 3px rgba(0,0,0,0.1)" : "none",
+                transition: "all 0.15s ease",
+              }}
+            >
+              <LayoutGrid size={14} /> Kartu Profil
             </button>
           </div>
         </div>
 
-        {/* Continuous Scrollable Data Table */}
-        <div className="table-scroll" style={{ maxHeight: "520px", overflowY: "auto" }}>
-          <DataTable
-            columns={columns}
-            data={filtered}
-            loading={loading}
-            rowKey={(r) => r.id}
-            onRowClick={(r) => setDetailOpen(r)}
-            emptyTitle="Belum Ada Calon Anggota"
-            emptyMessage="Belum ada pendaftar yang mengirimkan formulir. Pastikan formulir sudah aktif dan link dibagikan."
-          />
-        </div>
+        {/* 1. TABLE VIEW */}
+        {viewMode === "table" ? (
+          <div className="table-scroll" style={{ maxHeight: "560px", overflowY: "auto" }}>
+            <DataTable
+              columns={columns}
+              data={filtered}
+              loading={loading}
+              rowKey={(r) => r.id}
+              onRowClick={(r) => setDetailOpen(r)}
+              emptyTitle="Belum Ada Calon Anggota"
+              emptyMessage="Belum ada pendaftar yang mengirimkan formulir. Pastikan formulir sudah aktif dan link pendaftaran sudah dibagikan."
+            />
+          </div>
+        ) : (
+          /* 2. CARD GRID VIEW (Penonjolan Pas Foto & Kartu Calon) */
+          <div>
+            {filtered.length === 0 ? (
+              <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-muted)" }}>
+                <Sparkles size={32} style={{ color: "var(--primary-700, #b91c1c)", margin: "0 auto 12px" }} />
+                <h4 style={{ margin: "0 0 6px", color: "var(--navy-900)" }}>Tidak Ada Data Calon Anggota</h4>
+                <p style={{ margin: 0, fontSize: "13px" }}>Coba sesuaikan kata kunci pencarian atau filter yang Anda pilih.</p>
+              </div>
+            ) : (
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 280px), 1fr))",
+                  gap: 16,
+                  maxHeight: "620px",
+                  overflowY: "auto",
+                  padding: "4px 2px",
+                }}
+              >
+                {filtered.map((s) => {
+                  const { nama, hp, waUrl } = getCandidateInfo(s);
+                  const conf = STATUS_CONFIG[s.status] || STATUS_CONFIG.menunggu;
+                  const Icon = conf.icon;
+
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setDetailOpen(s)}
+                      style={{
+                        background: "#ffffff",
+                        borderRadius: "var(--radius-md, 12px)",
+                        border: "1px solid var(--border, #e2e8f0)",
+                        boxShadow: "0 2px 6px rgba(0,0,0,0.04)",
+                        overflow: "hidden",
+                        display: "flex",
+                        flexDirection: "column",
+                        cursor: "pointer",
+                        transition: "all 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.transform = "translateY(-3px)";
+                        e.currentTarget.style.boxShadow = "0 8px 20px rgba(0,0,0,0.08)";
+                        e.currentTarget.style.borderColor = "#cbd5e1";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.transform = "translateY(0)";
+                        e.currentTarget.style.boxShadow = "0 2px 6px rgba(0,0,0,0.04)";
+                        e.currentTarget.style.borderColor = "var(--border, #e2e8f0)";
+                      }}
+                    >
+                      {/* Card Header Profile Banner */}
+                      <div
+                        style={{
+                          padding: "16px",
+                          background: "linear-gradient(180deg, #f8fafc 0%, #ffffff 100%)",
+                          borderBottom: "1px solid #f1f5f9",
+                          display: "flex",
+                          gap: 14,
+                          alignItems: "center",
+                        }}
+                      >
+                        {/* Big Card Avatar Photo */}
+                        <CandidatePhotoBadge
+                          answers={s.answers}
+                          candidateName={nama}
+                          size="lg"
+                          onClick={(url, title, fileName) => openPhotoLightbox(url, title, fileName)}
+                        />
+
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>
+                            <span
+                              style={{
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                                padding: "3px 8px",
+                                borderRadius: "12px",
+                                fontSize: "11px",
+                                fontWeight: 700,
+                                background: conf.bg,
+                                color: conf.color,
+                                border: `1px solid ${conf.border}`,
+                              }}
+                            >
+                              <Icon size={11} /> {conf.label}
+                            </span>
+                          </div>
+                          <strong
+                            style={{
+                              fontSize: "14px",
+                              color: "var(--navy-900)",
+                              display: "block",
+                              overflow: "hidden",
+                              textOverflow: "ellipsis",
+                              whiteSpace: "nowrap",
+                            }}
+                            title={nama}
+                          >
+                            {nama}
+                          </strong>
+                          <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: 4, marginTop: 2 }}>
+                            <Calendar size={11} /> {formatTanggal(s.submittedAt)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Card Body Information */}
+                      <div style={{ padding: "12px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
+                          <span style={{ color: "var(--text-muted)" }}>Kontak HP/WA:</span>
+                          {waUrl ? (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                color: "#059669",
+                                fontWeight: 600,
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 4,
+                              }}
+                            >
+                              <MessageCircle size={13} /> {hp}
+                            </a>
+                          ) : (
+                            <span style={{ fontWeight: 600, color: "#475569" }}>{hp}</span>
+                          )}
+                        </div>
+
+                        {s.adminNote && (
+                          <div
+                            style={{
+                              padding: "6px 10px",
+                              background: "#eff6ff",
+                              borderRadius: 6,
+                              fontSize: "11.5px",
+                              color: "#1e40af",
+                              lineHeight: 1.4,
+                            }}
+                          >
+                            <strong>Catatan:</strong> {s.adminNote}
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Card Footer Actions */}
+                      <div
+                        style={{
+                          padding: "10px 16px",
+                          background: "#fafafa",
+                          borderTop: "1px solid #f1f5f9",
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "center",
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          type="button"
+                          className="btn btn-outline btn-sm"
+                          onClick={() => setDetailOpen(s)}
+                          style={{ fontSize: "12px", padding: "4px 10px", display: "inline-flex", alignItems: "center", gap: 4 }}
+                        >
+                          <Eye size={13} /> Detail
+                        </button>
+
+                        <div style={{ display: "flex", gap: 4 }}>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => openStatusChange(s)}
+                            title="Ubah Status Seleksi"
+                            style={{ color: "var(--primary-700, #b91c1c)", padding: "5px 8px" }}
+                          >
+                            <Check size={14} /> Status
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => handleDownloadDetailPdf(s)}
+                            title="Unduh PDF"
+                            style={{ color: "#0284c7", padding: "5px 8px" }}
+                          >
+                            <Download size={14} />
+                          </button>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => setDeleteOpen(s)}
+                            title="Hapus"
+                            style={{ color: "#dc2626", padding: "5px 8px" }}
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* DETAIL MODAL CALON ANGGOTA */}
+      {/* DETAIL MODAL CALON ANGGOTA (DENGAN HEADER PAS FOTO BESAR & JELAS) */}
       <Modal
         open={detailOpen !== null}
-        title="Detail Calon Anggota MB Chondro"
+        title="Profil Lengkap Calon Anggota"
         onClose={() => setDetailOpen(null)}
         size="lg"
         footer={
@@ -700,7 +1191,7 @@ export function SubmissionList({
               className="btn btn-outline"
               onClick={() => detailOpen && handleDownloadDetailPdf(detailOpen)}
             >
-              <Download size={16} /> Unduh PDF Calon
+              <Download size={16} /> Unduh Lembar PDF Calon
             </button>
             <button
               className="btn btn-primary"
@@ -711,279 +1202,312 @@ export function SubmissionList({
           </>
         }
       >
-        {detailOpen && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 18, maxHeight: "70vh", overflowY: "auto" }}>
-            {/* Header info banner */}
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                background: "var(--bg, #f8fafc)",
-                padding: "14px 18px",
-                borderRadius: 10,
-                border: "1px solid #e2e8f0",
-                flexWrap: "wrap",
-                gap: 12,
-              }}
-            >
-              <div>
-                <span style={{ fontSize: "12px", color: "var(--text-muted)", display: "block" }}>
-                  Tanggal Pendaftaran: {formatTanggalPanjang(detailOpen.submittedAt)}
-                </span>
-                <strong style={{ fontSize: "14px", color: "var(--navy-900)" }}>
-                  Formulir: {form.title}
-                </strong>
-              </div>
-              <div>
-                {(() => {
-                  const conf = STATUS_CONFIG[detailOpen.status] || STATUS_CONFIG.menunggu;
-                  const Icon = conf.icon;
-                  return (
+        {detailOpen && (() => {
+          const { nama, hp, waUrl } = getCandidateInfo(detailOpen);
+          const conf = STATUS_CONFIG[detailOpen.status] || STATUS_CONFIG.menunggu;
+          const Icon = conf.icon;
+          const photoInfo = extractCandidatePhotoInfo(detailOpen.answers);
+
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 18, maxHeight: "72vh", overflowY: "auto", paddingRight: 4 }}>
+              {/* Standout Profile Header Card */}
+              <div
+                style={{
+                  display: "flex",
+                  gap: 18,
+                  padding: "16px 20px",
+                  borderRadius: 12,
+                  background: "linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)",
+                  border: "1.5px solid #e2e8f0",
+                  boxShadow: "0 4px 12px rgba(0,0,0,0.04)",
+                  flexWrap: "wrap",
+                  alignItems: "center",
+                }}
+              >
+                {/* Big 120x150 Portrait Photo */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 8 }}>
+                  <CandidatePhotoBadge
+                    answers={detailOpen.answers}
+                    candidateName={nama}
+                    size="xl"
+                    onClick={(url, title, fileName) => openPhotoLightbox(url, title, fileName)}
+                  />
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                    {photoInfo.url && (
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => openPhotoLightbox(photoInfo.url!, `Pas Foto: ${nama}`, photoInfo.fileName || undefined)}
+                        style={{ fontSize: "11px", padding: "3px 8px", display: "inline-flex", alignItems: "center", gap: 4 }}
+                      >
+                        <ZoomIn size={12} /> Perbesar
+                      </button>
+                    )}
+                    {photoInfo.answerId && (
+                      <label
+                        className="btn btn-ghost btn-sm"
+                        style={{
+                          fontSize: "11px",
+                          padding: "3px 8px",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 4,
+                          cursor: "pointer",
+                          color: "var(--primary-700, #b91c1c)",
+                          margin: 0,
+                        }}
+                        title="Upload / Ganti Foto Calon Anggota"
+                      >
+                        <Camera size={12} /> Ganti
+                        <input
+                          type="file"
+                          accept="image/*"
+                          style={{ display: "none" }}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f && photoInfo.answerId) {
+                              handleAdminUploadPhoto(photoInfo.answerId, f);
+                            }
+                          }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Candidate Main Info */}
+                <div style={{ flex: 1, minWidth: 220, display: "flex", flexDirection: "column", gap: 6 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                     <span
                       style={{
                         display: "inline-flex",
                         alignItems: "center",
-                        gap: 6,
-                        padding: "5px 12px",
+                        gap: 5,
+                        padding: "4px 12px",
                         borderRadius: "20px",
-                        fontSize: "12.5px",
+                        fontSize: "12px",
                         fontWeight: 700,
                         background: conf.bg,
                         color: conf.color,
                         border: `1px solid ${conf.border}`,
                       }}
                     >
-                      <Icon size={14} />
-                      {conf.label}
+                      <Icon size={13} /> {conf.label}
                     </span>
-                  );
-                })()}
-              </div>
-            </div>
+                    <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                      ID Registrasi: <strong>{detailOpen.id}</strong>
+                    </span>
+                  </div>
 
-            {/* Admin Note if present */}
-            {detailOpen.adminNote && (
-              <div
-                style={{
-                  padding: "12px 16px",
-                  background: "#eff6ff",
-                  borderRadius: 8,
-                  border: "1px solid #bfdbfe",
-                  fontSize: "13px",
-                  color: "#1e40af",
-                }}
-              >
-                <strong>Catatan Admin / Reviewer:</strong>
-                <p style={{ margin: "4px 0 0", color: "#1d4ed8" }}>{detailOpen.adminNote}</p>
-              </div>
-            )}
+                  <h3 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "var(--navy-900)" }}>
+                    {nama}
+                  </h3>
 
-            {/* Dynamic Answers Grid */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <h4 style={{ fontSize: "13px", fontWeight: 700, color: "var(--navy-900)", margin: 0 }}>
-                Rincian Jawaban & Berkas Calon Anggota
-              </h4>
-              {detailOpen.answers.map((ans, idx) => (
+                  <div style={{ fontSize: "13px", color: "#475569", display: "flex", flexDirection: "column", gap: 4, marginTop: 4 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Calendar size={14} style={{ color: "var(--text-muted)" }} />
+                      <span>Terdaftar: <strong>{formatTanggalPanjang(detailOpen.submittedAt)}</strong></span>
+                    </div>
+
+                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                      <Phone size={14} style={{ color: "var(--text-muted)" }} />
+                      <span>WhatsApp / HP:</span>
+                      {waUrl ? (
+                        <a
+                          href={waUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          style={{
+                            color: "#059669",
+                            fontWeight: 700,
+                            textDecoration: "none",
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 4,
+                          }}
+                        >
+                          <MessageCircle size={13} /> {hp} (Hubungi)
+                        </a>
+                      ) : (
+                        <strong>{hp}</strong>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Admin Note Banner */}
+              {detailOpen.adminNote && (
                 <div
-                  key={ans.id || idx}
                   style={{
                     padding: "12px 16px",
-                    background: "#ffffff",
+                    background: "#eff6ff",
                     borderRadius: 8,
-                    border: "1px solid #e2e8f0",
+                    border: "1px solid #bfdbfe",
+                    fontSize: "13px",
+                    color: "#1e40af",
                   }}
                 >
-                  <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block" }}>
-                    {idx + 1}. {ans.field?.label || "Pertanyaan"}
-                  </label>
-                  {(() => {
-                    const isFileOrPhotoField =
-                      ans.field?.fieldType === "image" ||
-                      ans.field?.fieldType === "file" ||
-                      ans.fileType?.startsWith("image/") ||
-                      ans.field?.label?.toLowerCase().includes("foto") ||
-                      ans.field?.label?.toLowerCase().includes("berkas") ||
-                      ans.field?.label?.toLowerCase().includes("dokumen") ||
-                      ans.field?.label?.toLowerCase().includes("lampiran") ||
-                      Boolean(ans.fileName && /\.(jpe?g|png|webp|gif|pdf|docx?)$/i.test(ans.fileName)) ||
-                      Boolean(ans.value && /\.(jpe?g|png|webp|gif|pdf|docx?)$/i.test(ans.value)) ||
-                      Boolean(ans.fileUrl);
+                  <strong>Catatan Seleksi / Alasan:</strong>
+                  <p style={{ margin: "4px 0 0", color: "#1d4ed8" }}>{detailOpen.adminNote}</p>
+                </div>
+              )}
 
-                    if (isFileOrPhotoField) {
-                      const fileUrl = ans.fileUrl || (ans.value && (ans.value.startsWith("data:") || ans.value.startsWith("http")) ? ans.value : null);
-                      const isImg =
-                        ans.field?.fieldType === "image" ||
-                        ans.fileType?.startsWith("image/") ||
-                        ans.field?.label?.toLowerCase().includes("foto") ||
-                        Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
-                        Boolean(ans.value && /\.(jpe?g|png|webp|gif)$/i.test(ans.value)) ||
-                        Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("lh3.googleusercontent") || fileUrl.includes("drive.google.com") || fileUrl.includes("thumbnail")));
+              {/* Dynamic Answers Breakdown */}
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <h4 style={{ fontSize: "13.5px", fontWeight: 700, color: "var(--navy-900)", margin: "4px 0 0" }}>
+                  Rincian Jawaban & Berkas Lengkap
+                </h4>
 
-                      const displayName = ans.fileName || (ans.value && !ans.value.startsWith("data:") && !ans.value.startsWith("http") ? ans.value : (isImg ? "Foto Calon Anggota" : "Berkas Terunggah"));
+                <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 10 }}>
+                  {detailOpen.answers.map((ans, idx) => (
+                    <div
+                      key={ans.id || idx}
+                      style={{
+                        padding: "12px 16px",
+                        background: "#ffffff",
+                        borderRadius: 8,
+                        border: "1px solid #e2e8f0",
+                      }}
+                    >
+                      <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-muted)", display: "block", marginBottom: 4 }}>
+                        {idx + 1}. {ans.field?.label || "Pertanyaan"}
+                      </label>
 
-                      return (
-                        <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 14 }}>
-                          {isImg ? (
-                            <div
-                              style={{ position: "relative", cursor: "pointer" }}
-                              onClick={() =>
-                                openPhotoLightbox(
-                                  fileUrl || "",
-                                  ans.field?.label || displayName || "Foto Calon Anggota",
-                                  displayName
-                                )
-                              }
-                            >
-                              {fileUrl ? (
-                                <img
-                                  src={fileUrl}
-                                  alt="Berkas"
-                                  referrerPolicy={fileUrl.startsWith("http") ? "no-referrer" : undefined}
-                                  onError={(e) => {
-                                    const currentSrc = e.currentTarget.src;
-                                    const driveMatch = currentSrc.match(/\/d\/([a-zA-Z0-9_-]+)/);
-                                    if (driveMatch && !currentSrc.includes("thumbnail?id=")) {
-                                      e.currentTarget.src = `https://drive.google.com/thumbnail?id=${driveMatch[1]}&sz=w1600`;
-                                    }
-                                  }}
-                                  style={{
-                                    width: 100,
-                                    height: 75,
-                                    objectFit: "cover",
-                                    borderRadius: 8,
-                                    border: "1px solid #cbd5e1",
-                                    boxShadow: "0 2px 6px rgba(0,0,0,0.08)",
-                                    background: "#f1f5f9",
-                                  }}
-                                  title="Klik untuk memperbesar foto"
-                                />
-                              ) : (
+                      {(() => {
+                        const isFileOrPhotoField =
+                          ans.field?.fieldType === "image" ||
+                          ans.field?.fieldType === "file" ||
+                          ans.fileType?.startsWith("image/") ||
+                          (ans.field?.label || "").toLowerCase().includes("foto") ||
+                          (ans.field?.label || "").toLowerCase().includes("berkas") ||
+                          (ans.field?.label || "").toLowerCase().includes("dokumen") ||
+                          Boolean(ans.fileName && /\.(jpe?g|png|webp|gif|pdf|docx?)$/i.test(ans.fileName)) ||
+                          Boolean(ans.fileUrl);
+
+                        if (isFileOrPhotoField) {
+                          const fileUrl = ans.fileUrl || (ans.value?.startsWith("data:") || ans.value?.startsWith("http") ? ans.value : null);
+                          const isImg =
+                            ans.field?.fieldType === "image" ||
+                            ans.fileType?.startsWith("image/") ||
+                            (ans.field?.label || "").toLowerCase().includes("foto") ||
+                            Boolean(ans.fileName && /\.(jpe?g|png|webp|gif)$/i.test(ans.fileName)) ||
+                            Boolean(fileUrl && (fileUrl.startsWith("data:image/") || /\.(jpg|jpeg|png|webp|gif)($|\?)/i.test(fileUrl) || fileUrl.includes("drive.google.com")));
+
+                          const displayName = ans.fileName || (ans.value && !ans.value.startsWith("data:") && !ans.value.startsWith("http") ? ans.value : (isImg ? "Pas Foto Calon Anggota" : "Berkas Terunggah"));
+
+                          return (
+                            <div style={{ marginTop: 6, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+                              {isImg ? (
                                 <div
-                                  style={{
-                                    width: 100,
-                                    height: 75,
-                                    borderRadius: 8,
-                                    border: "1px dashed #94a3b8",
-                                    background: "#f8fafc",
-                                    display: "flex",
-                                    flexDirection: "column",
-                                    alignItems: "center",
-                                    justifyContent: "center",
-                                    gap: 4,
-                                    color: "#64748b",
-                                    fontSize: "11px",
-                                    fontWeight: 500,
-                                  }}
+                                  style={{ position: "relative", cursor: "pointer" }}
+                                  onClick={() =>
+                                    openPhotoLightbox(
+                                      fileUrl || "",
+                                      ans.field?.label || displayName || "Pas Foto",
+                                      displayName
+                                    )
+                                  }
                                 >
-                                  <span style={{ fontSize: "20px" }}>📷</span>
-                                  <span>Lihat Foto</span>
+                                  <CandidatePhotoBadge
+                                    answers={[ans]}
+                                    candidateName={nama}
+                                    size="md"
+                                    onClick={(u, t, fn) => openPhotoLightbox(u, t, fn)}
+                                  />
                                 </div>
+                              ) : (
+                                <FileText size={36} style={{ color: "#2563eb", flexShrink: 0 }} />
                               )}
-                              <div
-                                style={{
-                                  position: "absolute",
-                                  right: 4,
-                                  bottom: 4,
-                                  background: "rgba(0,0,0,0.65)",
-                                  color: "#fff",
-                                  borderRadius: 4,
-                                  padding: "2px 4px",
-                                  display: "flex",
-                                }}
-                              >
-                                <ZoomIn size={12} />
+
+                              <div style={{ flex: 1, minWidth: 160 }}>
+                                <strong style={{ fontSize: "13px", color: "var(--navy-900)", display: "block" }}>
+                                  {displayName}
+                                </strong>
+                                <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
+                                  <button
+                                    type="button"
+                                    className="btn btn-outline btn-sm"
+                                    onClick={() => handleOpenFile(ans)}
+                                    style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "12px", padding: "4px 10px" }}
+                                  >
+                                    <Eye size={13} /> Buka / Lihat {isImg ? "Foto" : "Berkas"}
+                                  </button>
+                                  {isImg && (
+                                    <>
+                                      <label
+                                        className="btn btn-ghost btn-sm"
+                                        style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "#0284c7", padding: "4px 8px", cursor: "pointer", margin: 0 }}
+                                        title="Ganti / Perbarui foto calon anggota"
+                                      >
+                                        <Camera size={13} /> Ganti Foto
+                                        <input
+                                          type="file"
+                                          accept="image/*"
+                                          style={{ display: "none" }}
+                                          onChange={(e) => {
+                                            const f = e.target.files?.[0];
+                                            if (f) handleAdminUploadPhoto(ans.id, f);
+                                          }}
+                                        />
+                                      </label>
+                                      {fileUrl && (
+                                        <button
+                                          type="button"
+                                          className="btn btn-ghost btn-sm"
+                                          onClick={() => handleDownloadImage(fileUrl, ans.field?.label || ans.fileName || undefined)}
+                                          style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "var(--primary-700, #b91c1c)", padding: "4px 8px" }}
+                                        >
+                                          <Download size={13} /> Unduh
+                                        </button>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          ) : (
-                            <FileText size={36} style={{ color: "#2563eb" }} />
-                          )}
-                          <div>
-                            <strong style={{ fontSize: "13px", color: "var(--navy-900)", display: "block" }}>
-                              {displayName}
-                            </strong>
-                            <div style={{ display: "flex", gap: 8, marginTop: 6, flexWrap: "wrap" }}>
-                              <button
-                                type="button"
-                                className="btn btn-outline btn-sm"
-                                onClick={() => handleOpenFile(ans)}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: "12px", padding: "5px 12px" }}
-                              >
-                                <Eye size={13} /> Buka / Lihat {isImg ? "Foto" : "Berkas"}
-                              </button>
-                              {isImg && (
-                                <>
-                                  <label
-                                    className="btn btn-ghost btn-sm"
-                                    style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "#0284c7", padding: "5px 10px", cursor: "pointer", margin: 0 }}
-                                    title="Ganti / Perbarui foto calon anggota"
-                                  >
-                                    📷 Ganti Foto
-                                    <input
-                                      type="file"
-                                      accept="image/*"
-                                      style={{ display: "none" }}
-                                      onChange={(e) => {
-                                        const f = e.target.files?.[0];
-                                        if (f) handleAdminUploadPhoto(ans.id, f);
-                                      }}
-                                    />
-                                  </label>
-                                  {fileUrl && (
-                                    <button
-                                      type="button"
-                                      className="btn btn-ghost btn-sm"
-                                      onClick={() => handleDownloadImage(fileUrl, ans.field?.label || ans.fileName || undefined)}
-                                      style={{ display: "inline-flex", alignItems: "center", gap: 4, fontSize: "12px", color: "var(--primary-700, #b91c1c)", padding: "5px 10px" }}
-                                    >
-                                      <Download size={13} /> Unduh
-                                    </button>
-                                  )}
-                                </>
-                              )}
+                          );
+                        }
+
+                        if (ans.field?.fieldType === "checkbox") {
+                          return (
+                            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
+                              {ans.value.split(",").filter(Boolean).map((v, i) => (
+                                <span
+                                  key={i}
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    padding: "3px 10px",
+                                    background: "#f1f5f9",
+                                    color: "var(--navy-900)",
+                                    borderRadius: 6,
+                                    fontSize: "12.5px",
+                                    fontWeight: 500,
+                                    border: "1px solid #e2e8f0",
+                                  }}
+                                >
+                                  <Check size={12} style={{ color: "#16a34a" }} /> {v.trim()}
+                                </span>
+                              ))}
                             </div>
-                          </div>
-                        </div>
-                      );
-                    }
+                          );
+                        }
 
-                    if (ans.field?.fieldType === "checkbox") {
-                      return (
-                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 4 }}>
-                          {ans.value.split(",").filter(Boolean).map((v, i) => (
-                            <span
-                              key={i}
-                              style={{
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                padding: "3px 10px",
-                                background: "#f1f5f9",
-                                color: "var(--navy-900)",
-                                borderRadius: 6,
-                                fontSize: "12.5px",
-                                fontWeight: 500,
-                                border: "1px solid #e2e8f0",
-                              }}
-                            >
-                              <Check size={12} style={{ color: "#16a34a" }} /> {v.trim()}
-                            </span>
-                          ))}
-                        </div>
-                      );
-                    }
-
-                    return (
-                      <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block", marginTop: 2 }}>
-                        {ans.value || <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>-</span>}
-                      </strong>
-                    );
-                  })()}
+                        return (
+                          <strong style={{ fontSize: "13.5px", color: "var(--navy-900)", display: "block", marginTop: 2 }}>
+                            {ans.value || <span style={{ color: "var(--text-muted)", fontWeight: 400 }}>-</span>}
+                          </strong>
+                        );
+                      })()}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* MODAL UBAH STATUS SELEKSI */}
@@ -998,73 +1522,76 @@ export function SubmissionList({
               Batal
             </button>
             <button className="btn btn-primary" onClick={handleStatusSave} disabled={savingStatus}>
-              {savingStatus ? "Menyimpan..." : "Simpan Status"}
+              {savingStatus ? "Menyimpan..." : "Simpan Status Seleksi"}
             </button>
           </>
         }
       >
-        {statusModalSub && (
-          <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-            <div>
-              <span style={{ fontSize: "12.5px", color: "var(--text-muted)" }}>Calon Anggota:</span>
-              <strong style={{ fontSize: "14px", color: "var(--navy-900)", display: "block" }}>
-                {statusModalSub.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value || "Calon Anggota"}
-              </strong>
-            </div>
+        {statusModalSub && (() => {
+          const { nama } = getCandidateInfo(statusModalSub);
+          return (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <div>
+                <span style={{ fontSize: "12px", color: "var(--text-muted)" }}>Calon Anggota Terpilih:</span>
+                <strong style={{ fontSize: "15px", color: "var(--navy-900)", display: "block" }}>
+                  {nama}
+                </strong>
+              </div>
 
-            <div className="form-group" style={{ gap: 6 }}>
-              <label style={{ fontSize: "13px", fontWeight: 600 }}>Tentukan Status Seleksi *</label>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-                {(["menunggu", "lolos", "cadangan", "tidak_lolos"] as RekrutmenSubmissionStatus[]).map((st) => {
-                  const conf = STATUS_CONFIG[st];
-                  const Icon = conf.icon;
-                  const active = selectedStatus === st;
-                  return (
-                    <button
-                      key={st}
-                      type="button"
-                      onClick={() => setSelectedStatus(st)}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "10px 12px",
-                        borderRadius: 8,
-                        border: active ? `2px solid ${conf.color}` : "1px solid #e2e8f0",
-                        background: active ? conf.bg : "#ffffff",
-                        color: conf.color,
-                        fontWeight: active ? 700 : 500,
-                        fontSize: "13px",
-                        cursor: "pointer",
-                        transition: "all 0.15s ease",
-                      }}
-                    >
-                      <Icon size={16} />
-                      {conf.label}
-                    </button>
-                  );
-                })}
+              <div className="form-group" style={{ gap: 6 }}>
+                <label style={{ fontSize: "13px", fontWeight: 600 }}>Tentukan Status Hasil Seleksi *</label>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                  {(["menunggu", "lolos", "cadangan", "tidak_lolos"] as RekrutmenSubmissionStatus[]).map((st) => {
+                    const conf = STATUS_CONFIG[st];
+                    const Icon = conf.icon;
+                    const active = selectedStatus === st;
+                    return (
+                      <button
+                        key={st}
+                        type="button"
+                        onClick={() => setSelectedStatus(st)}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          padding: "10px 12px",
+                          borderRadius: 8,
+                          border: active ? `2px solid ${conf.color}` : "1px solid #e2e8f0",
+                          background: active ? conf.bg : "#ffffff",
+                          color: conf.color,
+                          fontWeight: active ? 700 : 500,
+                          fontSize: "13px",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        <Icon size={16} />
+                        {conf.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="form-group" style={{ gap: 4 }}>
+                <label style={{ fontSize: "13px", fontWeight: 600 }}>Catatan Reviewer / Alasan Keputusan (Opsional)</label>
+                <textarea
+                  value={adminNote}
+                  onChange={(e) => setAdminNote(e.target.value)}
+                  placeholder="Misal: Memenuhi seluruh kriteria instrumen brass / Menjadi cadangan gelombang 1"
+                  rows={3}
+                  style={{ padding: "8px 12px", fontSize: "13px", resize: "vertical" }}
+                />
               </div>
             </div>
-
-            <div className="form-group" style={{ gap: 4 }}>
-              <label style={{ fontSize: "13px", fontWeight: 600 }}>Catatan Seleksi / Alasan (Opsional)</label>
-              <textarea
-                value={adminNote}
-                onChange={(e) => setAdminNote(e.target.value)}
-                placeholder="Misal: Memenuhi seluruh kriteria divisi musik / Cadangan gelombang 1"
-                rows={3}
-                style={{ padding: "8px 12px", fontSize: "13px", resize: "vertical" }}
-              />
-            </div>
-          </div>
-        )}
+          );
+        })()}
       </Modal>
 
       {/* MODAL DOWNLOAD PDF REKAPITULASI */}
       <Modal
         open={pdfOpen}
-        title="Unduh Laporan PDF Calon Anggota"
+        title="Unduh Laporan Rekapitulasi PDF Calon Anggota"
         onClose={() => setPdfOpen(false)}
         size="md"
         footer={
@@ -1074,18 +1601,18 @@ export function SubmissionList({
             </button>
             <button className="btn btn-primary" onClick={handleGeneratePdf} disabled={pdfGenerating}>
               <Download size={16} />
-              {pdfGenerating ? "Membuat PDF..." : "Unduh PDF Laporan"}
+              {pdfGenerating ? "Membuat PDF..." : "Unduh Laporan PDF"}
             </button>
           </>
         }
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           <div>
-            <div style={{ fontWeight: 600, fontSize: "14px", color: "var(--navy-900)" }}>
-              Pilih Periode & Kriteria Laporan
+            <div style={{ fontWeight: 700, fontSize: "14px", color: "var(--navy-900)" }}>
+              Pilih Kriteria & Rentang Laporan
             </div>
             <p style={{ fontSize: "12.5px", color: "var(--text-muted)", margin: "3px 0 0" }}>
-              Tentukan rentang tanggal dan status calon anggota yang akan dicetak ke dalam dokumen PDF
+              Cetak dokumen rekapitulasi calon anggota MB Chondro lengkap dengan tabel status dan pas foto.
             </p>
           </div>
 
@@ -1252,7 +1779,7 @@ export function SubmissionList({
               fontSize: "12.5px",
             }}
           >
-            <span style={{ color: "var(--text-muted)" }}>Periode yang dicetak:</span>
+            <span style={{ color: "var(--text-muted)" }}>Periode dicetak:</span>
             <strong style={{ color: "var(--navy-900)" }}>
               {pdfRange.label}
               {pdfStatus ? ` · ${STATUS_CONFIG[pdfStatus]?.label}` : ""}
@@ -1266,14 +1793,14 @@ export function SubmissionList({
         open={deleteOpen !== null}
         title="Hapus Data Calon Anggota?"
         message={`Data calon anggota ${
-          deleteOpen?.answers.find((a) => a.field.label.toLowerCase().includes("nama"))?.value || ""
-        } akan dihapus secara permanen.`}
+          deleteOpen ? getCandidateInfo(deleteOpen).nama : ""
+        } akan dihapus secara permanen dari sistem.`}
         loading={deleting}
         onConfirm={handleDelete}
         onCancel={() => setDeleteOpen(null)}
       />
 
-      {/* IMAGE LIGHTBOX MODAL (PORTAL TO BODY SO IT APPEARS ON TOP OF DETAIL MODAL) */}
+      {/* IMAGE LIGHTBOX MODAL (PORTAL TO BODY) */}
       {lightboxImage &&
         createPortal(
           <div
@@ -1284,8 +1811,8 @@ export function SubmissionList({
               left: 0,
               right: 0,
               bottom: 0,
-              background: "rgba(0, 0, 0, 0.85)",
-              backdropFilter: "blur(4px)",
+              background: "rgba(0, 0, 0, 0.88)",
+              backdropFilter: "blur(6px)",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
@@ -1317,7 +1844,7 @@ export function SubmissionList({
                   background: "#ffffff",
                 }}
               >
-                <strong style={{ fontSize: "14px", fontWeight: 600, color: "var(--navy-900)" }}>
+                <strong style={{ fontSize: "14px", fontWeight: 700, color: "var(--navy-900)" }}>
                   📸 {lightboxImage.title}
                 </strong>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1334,13 +1861,13 @@ export function SubmissionList({
                     className="btn btn-ghost btn-sm"
                     onClick={() => setLightboxImage(null)}
                     style={{ padding: "4px 8px", fontSize: "16px", lineHeight: 1 }}
-                    title="Tutup Foto"
+                    title="Tutup Pratinjau"
                   >
                     ✕
                   </button>
                 </div>
               </div>
-              <div style={{ padding: 24, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 280 }}>
+              <div style={{ padding: 24, textAlign: "center", background: "rgba(15, 23, 42, 0.95)", display: "flex", alignItems: "center", justifyContent: "center", minHeight: 320 }}>
                 {lightboxFetching ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#f8fafc" }}>
                     <div style={{ width: 36, height: 36, border: "3px solid rgba(255,255,255,0.2)", borderTopColor: "#38bdf8", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
@@ -1348,10 +1875,10 @@ export function SubmissionList({
                   </div>
                 ) : lightboxImgError ? (
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, color: "#f8fafc", padding: "10px" }}>
-                    <span style={{ fontSize: "36px" }}>📸</span>
-                    <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>Foto Pada Versi Sebelum Pembaruan</strong>
+                    <Camera size={44} style={{ color: "#94a3b8" }} />
+                    <strong style={{ fontSize: "14.5px", color: "#f8fafc" }}>Foto Dalam Proses Resolusi</strong>
                     <p style={{ fontSize: "12.5px", color: "#94a3b8", maxWidth: 380, margin: 0, lineHeight: 1.5 }}>
-                      File foto ini tidak tersimpan di Google Drive atau data telah kedaluwarsa. Calon anggota yang mendaftar sekarang fotonya langsung tersimpan permanen dan utuh.
+                      Foto ini tersimpan di Google Drive. Klik tombol muat ulang di bawah untuk memproses foto ke resolusi HD instan.
                     </p>
                     <div style={{ display: "flex", gap: 10, marginTop: 8, flexWrap: "wrap", justifyContent: "center" }}>
                       <button
@@ -1374,51 +1901,20 @@ export function SubmissionList({
                           }
                         }}
                       >
-                        🔄 Coba Muat Ulang
+                        🔄 Muat Ulang Foto HD
                       </button>
-                      <label
-                        className="btn btn-primary btn-sm"
-                        style={{ display: "inline-flex", alignItems: "center", gap: 6, cursor: "pointer", margin: 0 }}
-                      >
-                        📷 Unggah / Ganti Foto
-                        <input
-                          type="file"
-                          accept="image/*"
-                          style={{ display: "none" }}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0];
-                            if (f && detailOpen) {
-                              const ansPhoto = detailOpen.answers.find(
-                                (a: RekrutmenAnswer & { field?: RekrutmenField }) =>
-                                  a.field?.fieldType === "image" ||
-                                  a.field?.label?.toLowerCase().includes("foto") ||
-                                  a.fileName === lightboxImage.fileName
-                              );
-                              if (ansPhoto) {
-                                handleAdminUploadPhoto(ansPhoto.id, f);
-                              }
-                            }
-                          }}
-                        />
-                      </label>
                     </div>
                   </div>
                 ) : (
                   <img
                     src={lightboxImage.url}
                     alt={lightboxImage.title}
-                    referrerPolicy={lightboxImage.url.startsWith("http") ? "no-referrer" : undefined}
+                    referrerPolicy="no-referrer"
                     onError={async (e) => {
-                      const currentSrc = e.currentTarget.src;
-                      const match = currentSrc.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
+                      const current = e.currentTarget.src;
+                      const match = current.match(/[\/|=]([a-zA-Z0-9_-]{25,})/);
                       const fileId = match ? match[1] : undefined;
 
-                      if (currentSrc.startsWith("http") && !currentSrc.includes("thumbnail?id=") && fileId) {
-                        e.currentTarget.src = `https://drive.google.com/thumbnail?id=${fileId}&sz=w1600`;
-                        return;
-                      }
-
-                      // Auto-fetch dari backend proxy Google Drive
                       setLightboxFetching(true);
                       const res = await getRekrutmenImageBase64Item({
                         fileId,
