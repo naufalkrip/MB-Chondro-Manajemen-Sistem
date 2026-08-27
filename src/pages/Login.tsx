@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { User, Lock, Eye, EyeOff, LogIn, AlertCircle, ShieldCheck } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
 import logoImg from "../aset/logo.png";
@@ -7,7 +7,6 @@ import logoImg from "../aset/logo.png";
 export function Login() {
   const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
-  const location = useLocation();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -15,14 +14,12 @@ export function Login() {
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // If already authenticated, redirect to dashboard or intended page
-  const from = (location.state as { from?: { pathname?: string } })?.from?.pathname || "/";
-
+  // Jika sudah terautentikasi, selalu arahkan ke Dashboard (/)
   React.useEffect(() => {
     if (isAuthenticated) {
-      navigate(from, { replace: true });
+      navigate("/", { replace: true });
     }
-  }, [isAuthenticated, navigate, from]);
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,7 +36,7 @@ export function Login() {
     setIsSubmitting(true);
     try {
       await login(cleanUser, cleanPass);
-      navigate(from, { replace: true });
+      navigate("/", { replace: true });
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : "Gagal masuk ke sistem. Silakan coba lagi.";
       setError(msg);
