@@ -357,7 +357,7 @@ export function Absensi() {
                 n.waktu === item.waktu)
           )
       );
-      return [...optimisticAbsensiList, ...existing];
+      return [...existing, ...optimisticAbsensiList];
     });
 
     setFormStatus({});

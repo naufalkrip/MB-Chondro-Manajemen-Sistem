@@ -70,7 +70,7 @@ export function TransaksiList({
         if (filterSampai && g.tanggal && g.tanggal > filterSampai) return false;
         return true;
       })
-      .sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+      .sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "") || (a.id || "").localeCompare(b.id || ""));
   }, [groups, search, filterDari, filterSampai]);
 
   const validate = (f: FormGroup): Record<string, string> => {

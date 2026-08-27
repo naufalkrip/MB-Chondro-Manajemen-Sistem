@@ -160,7 +160,7 @@ export async function addAnggota(data: Omit<Anggota, "id">): Promise<ApiResult<A
       keterangan: data.keterangan,
     });
     const item = normAnggota(result);
-    cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) => [item, ...(prev ?? []).filter((a) => a.id !== item.id)]);
+    cacheMutate<Anggota[]>(CACHE_KEYS.ANGGOTA, (prev) => [...(prev ?? []).filter((a) => a.id !== item.id), item]);
     cacheClear(CACHE_KEYS.DASHBOARD);
     return { success: true, data: item, message: String(result?.message ?? "") };
   } catch (e) {
@@ -220,7 +220,7 @@ export async function addAbsensi(data: Omit<Absensi, "id" | "nama">): Promise<Ap
       waktu: data.waktu,
     });
     const item = normAbsensi(result as Record<string, unknown>);
-    cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [item, ...(prev ?? []).filter((a) => a.id !== item.id)]);
+    cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [...(prev ?? []).filter((a) => a.id !== item.id), item]);
     cacheClear(CACHE_KEYS.DASHBOARD);
     return { success: true, data: item };
   } catch (e) {
@@ -278,7 +278,7 @@ export async function saveAbsensiBatch(
     const newItems = (result ?? []).map((r) => normAbsensi(r as Record<string, unknown>));
     cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => {
       const existing = (prev ?? []).filter((a) => !newItems.some((n) => n.id === a.id));
-      return [...newItems, ...existing];
+      return [...existing, ...newItems];
     });
     cacheClear(CACHE_KEYS.DASHBOARD);
     return {
@@ -356,7 +356,7 @@ async function addKeuangan(sheet: KeuanganSheet, data: Omit<Transaksi, "id">): P
       penanggungJawab: data.penanggungJawab,
     });
     const item = normTransaksi(result as Record<string, unknown>);
-    cacheMutate<Transaksi[]>(cacheKey, (prev) => [item, ...(prev ?? []).filter((t) => t.id !== item.id)]);
+    cacheMutate<Transaksi[]>(cacheKey, (prev) => [...(prev ?? []).filter((t) => t.id !== item.id), item]);
     cacheClear(CACHE_KEYS.DASHBOARD);
     return { success: true, data: item };
   } catch (e) {
@@ -426,7 +426,7 @@ async function addTransaksiGroup(data: Omit<TransaksiGroup, "id" | "createdAt" |
       keterangan: data.keterangan,
     });
     const item = normTransaksiGroup(result as Record<string, unknown>);
-    cacheMutate<TransaksiGroupWithStats[]>(CACHE_KEYS.TRANSAKSI, (prev) => [item, ...(prev ?? []).filter((g) => g.id !== item.id)]);
+    cacheMutate<TransaksiGroupWithStats[]>(CACHE_KEYS.TRANSAKSI, (prev) => [...(prev ?? []).filter((g) => g.id !== item.id), item]);
     return { success: true, data: item };
   } catch (e) {
     return { success: false, message: e instanceof Error ? e.message : "Gagal menyimpan data." };
@@ -494,7 +494,7 @@ async function addTransaksiDetail(data: Omit<TransaksiDetail, "id" | "createdAt"
       keterangan: data.keterangan,
     });
     const item = normTransaksiDetail(result as Record<string, unknown>);
-    cacheMutate<TransaksiDetail[]>(`${CACHE_KEYS.TRANSAKSI_DETAIL}:${data.transaksiGroupId}`, (prev) => [item, ...(prev ?? []).filter((d) => d.id !== item.id)]);
+    cacheMutate<TransaksiDetail[]>(`${CACHE_KEYS.TRANSAKSI_DETAIL}:${data.transaksiGroupId}`, (prev) => [...(prev ?? []).filter((d) => d.id !== item.id), item]);
     return { success: true, data: item };
   } catch (e) {
     return { success: false, message: e instanceof Error ? e.message : "Gagal menyimpan data." };
@@ -813,8 +813,8 @@ async function addRekrutmenSubmission(data: NewRekrutmenSubmissionPayload): Prom
     const result = await request<unknown>("addRekrutmenSubmission", data as unknown as Record<string, unknown>);
     const sub = normRekrutmenSubmission(result as Record<string, unknown>);
     cacheMutate<RekrutmenSubmissionWithAnswers[]>(CACHE_KEYS.REKRUITMEN_SUBMISSIONS, (prev) => [
-      { ...sub, answers: [], form: { id: "", title: "", description: "", status: "ditutup" as const, createdAt: "", updatedAt: "" } },
       ...(prev ?? []),
+      { ...sub, answers: [], form: { id: "", title: "", description: "", status: "ditutup" as const, createdAt: "", updatedAt: "" } },
     ]);
     cacheClear(CACHE_KEYS.REKRUITMEN_STATS);
     cacheClear(CACHE_KEYS.DASHBOARD);

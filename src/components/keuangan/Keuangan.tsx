@@ -98,7 +98,7 @@ export function Keuangan({ title, subtitle, loading, transaksi, onRefresh, onSav
       sampai: filterSampai || undefined,
       jenis: filterJenis || undefined,
       search: search || undefined,
-    }).sort((a, b) => (b.tanggal || "").localeCompare(a.tanggal || ""));
+    }).sort((a, b) => (a.tanggal || "").localeCompare(b.tanggal || "") || (a.id || "").localeCompare(b.id || ""));
   }, [transaksi, filterDari, filterSampai, filterJenis, search]);
 
   const pdfRange = useMemo(() => {

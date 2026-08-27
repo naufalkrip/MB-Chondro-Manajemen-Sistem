@@ -388,7 +388,7 @@ export function SubmissionList({
 
         return true;
       })
-      .sort((a, b) => (b.submittedAt || "").localeCompare(a.submittedAt || ""));
+      .sort((a, b) => (a.submittedAt || "").localeCompare(b.submittedAt || "") || (a.id || "").localeCompare(b.id || ""));
   }, [safeSubmissions, search, filterStatus, filterPeriode]);
 
   const pdfRange = useMemo(() => {
