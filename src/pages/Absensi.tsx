@@ -105,13 +105,21 @@ export function Absensi() {
   const loading = loadingAnggota || loadingAbsensi;
   const today = new Date().toISOString().slice(0, 10);
 
+  // Helper waktu otomatis sesuai jam saat ini
+  const getWaktuOtomatis = (): WaktuAbsensi => {
+    const jam = new Date().getHours();
+    if (jam >= 5 && jam < 12) return "Pagi";
+    if (jam >= 12 && jam < 18) return "Siang";
+    return "Malam";
+  };
+
   // Form input absensi
   const [formTanggal, setFormTanggal] = useState(today);
   const [formKegiatan, setFormKegiatan] = useState("");
-  const [formWaktu, setFormWaktu] = useState<WaktuAbsensi | "">("");
+  const [formWaktu, setFormWaktu] = useState<WaktuAbsensi | "">(getWaktuOtomatis());
   const [formStatus, setFormStatus] = useState<Record<string, StatusKehadiran>>({});
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const saving = false;
+  const [saving, setSaving] = useState(false);
 
   // Search & filter daftar anggota
   const [memberSearch, setMemberSearch] = useState("");
@@ -133,9 +141,9 @@ export function Absensi() {
   const [editSesi, setEditSesi] = useState<SesiAbsensi | null>(null);
   const [editForm, setEditForm] = useState({ tanggal: "", kegiatan: "", waktu: "" as WaktuAbsensi | "" });
   const [editStatus, setEditStatus] = useState<Record<string, StatusKehadiran>>({});
-  const editSaving = false;
+  const [editSaving, setEditSaving] = useState(false);
   const [toDelete, setToDelete] = useState<SesiAbsensi | null>(null);
-  const deleting = false;
+  const [deleting, setDeleting] = useState(false);
 
   // Modal pilih rentang PDF
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -264,7 +272,6 @@ export function Absensi() {
     }
   };
 
-
   const validateForm = () => {
     const err: Record<string, string> = {};
     if (!formTanggal) err.tanggal = "Tanggal wajib diisi.";
@@ -288,8 +295,22 @@ export function Absensi() {
   const handleSave = async () => {
     const err = validateForm();
     setFormErrors(err);
-    if (Object.keys(err).length > 0) return;
+    if (Object.keys(err).length > 0) {
+      if (err.anggota) {
+        toastError(err.anggota);
+      } else if (err.kegiatan && err.waktu) {
+        toastError("Mohon lengkapi Tempat/Kegiatan dan pilih Waktu Absensi.");
+      } else if (err.kegiatan) {
+        toastError(err.kegiatan);
+      } else if (err.waktu) {
+        toastError(err.waktu);
+      } else if (err.tanggal) {
+        toastError(err.tanggal);
+      }
+      return;
+    }
 
+    setSaving(true);
     const sessionKey = `${formTanggal}|${formKegiatan.trim().toLowerCase()}|${formWaktu as string}`;
     const existingByMember = new Map<string, Absensi>();
     for (const a of absensi) {
@@ -325,7 +346,17 @@ export function Absensi() {
 
     // 1. INSTAN 0-ms: Update UI & Cache seketika
     cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => {
-      const existing = (prev ?? []).filter((item) => !optimisticAbsensiList.some((n) => n.id === item.id || (n.idAnggota === item.idAnggota && n.tanggal === item.tanggal && n.kegiatan.toLowerCase() === item.kegiatan.toLowerCase() && n.waktu === item.waktu)));
+      const existing = (prev ?? []).filter(
+        (item) =>
+          !optimisticAbsensiList.some(
+            (n) =>
+              n.id === item.id ||
+              (n.idAnggota === item.idAnggota &&
+                n.tanggal === item.tanggal &&
+                n.kegiatan.toLowerCase() === item.kegiatan.toLowerCase() &&
+                n.waktu === item.waktu)
+          )
+      );
       return [...optimisticAbsensiList, ...existing];
     });
 
@@ -338,16 +369,31 @@ export function Absensi() {
 
     // 2. Background Sync ke server
     try {
+      let isSuccess = true;
+      let errorMsg = "";
       if (toAdd.length > 0) {
-        await saveAbsensiBatch(toAdd);
+        const res = await saveAbsensiBatch(toAdd);
+        if (!res.success) {
+          isSuccess = false;
+          errorMsg = res.message || "Gagal menyimpan absensi ke server.";
+        }
       }
       if (toUpdate.length > 0) {
-        await updateAbsensiBatch(toUpdate);
+        const res = await updateAbsensiBatch(toUpdate);
+        if (!res.success) {
+          isSuccess = false;
+          errorMsg = res.message || "Gagal memperbarui absensi di server.";
+        }
       }
-      void refresh(true);
-    } catch {
-      toastError("Gagal menghubungi server.");
-      void refresh(true);
+      if (!isSuccess) {
+        toastError(errorMsg);
+      }
+      await refresh(true);
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Gagal menghubungi server.");
+      await refresh(true);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -381,6 +427,7 @@ export function Absensi() {
       return;
     }
 
+    setEditSaving(true);
     const oldByMember = new Map(editSesi.daftar.map((r) => [r.idAnggota, r] as const));
     const toUpdate: Omit<Absensi, "nama">[] = [];
     const toAdd: Omit<Absensi, "id" | "nama">[] = [];
@@ -418,16 +465,31 @@ export function Absensi() {
 
     // 2. Background Sync ke server
     try {
+      let isSuccess = true;
+      let errorMsg = "";
       if (toUpdate.length > 0) {
-        await updateAbsensiBatch(toUpdate);
+        const res = await updateAbsensiBatch(toUpdate);
+        if (!res.success) {
+          isSuccess = false;
+          errorMsg = res.message || "Gagal memperbarui absensi di server.";
+        }
       }
       if (toAdd.length > 0) {
-        await saveAbsensiBatch(toAdd);
+        const res = await saveAbsensiBatch(toAdd);
+        if (!res.success) {
+          isSuccess = false;
+          errorMsg = res.message || "Gagal menyimpan absensi ke server.";
+        }
       }
-      void refresh(true);
-    } catch {
-      toastError("Gagal menghubungi server.");
-      void refresh(true);
+      if (!isSuccess) {
+        toastError(errorMsg);
+      }
+      await refresh(true);
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Gagal menghubungi server.");
+      await refresh(true);
+    } finally {
+      setEditSaving(false);
     }
   };
 
@@ -437,6 +499,7 @@ export function Absensi() {
     const idsToDelete = toDelete.daftar.map((r) => r.id);
     const backupList = toDelete.daftar;
 
+    setDeleting(true);
     // 1. INSTAN 0-ms: Hapus dari UI & Cache seketika + tutup dialog
     cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) =>
       (prev ?? []).filter((a) => !sessionItemIds.has(a.id))
@@ -451,11 +514,13 @@ export function Absensi() {
         toastError(res.message || "Gagal menghapus di server.");
         cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [...(prev ?? []), ...backupList]);
       } else {
-        void refresh(true);
+        await refresh(true);
       }
-    } catch {
-      toastError("Gagal menghubungi server.");
+    } catch (e) {
+      toastError(e instanceof Error ? e.message : "Gagal menghubungi server.");
       cacheMutate<Absensi[]>(CACHE_KEYS.ABSENSI, (prev) => [...(prev ?? []), ...backupList]);
+    } finally {
+      setDeleting(false);
     }
   };
 

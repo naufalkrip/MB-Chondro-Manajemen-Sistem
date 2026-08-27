@@ -698,14 +698,32 @@ function validateAbsensi(data) {
   if (!data.kegiatan || !String(data.kegiatan).trim()) throw new Error("Kegiatan wajib diisi.");
   if (!data.status) throw new Error("Status kehadiran wajib dipilih.");
   if (!data.waktu) throw new Error("Waktu absensi wajib dipilih.");
-  var status = String(data.status);
-  if (["Hadir", "Izin", "Sakit", "Cuti", "Alpa"].indexOf(status) === -1) {
-    throw new Error("Status kehadiran tidak valid.");
+  
+  var statusNorm = String(data.status).trim().toLowerCase();
+  var validStatus = {
+    "hadir": "Hadir",
+    "izin": "Izin",
+    "sakit": "Sakit",
+    "cuti": "Cuti",
+    "alpa": "Alpa"
+  };
+  var matchedStatus = validStatus[statusNorm];
+  if (!matchedStatus) {
+    throw new Error("Status kehadiran tidak valid: " + data.status);
   }
-  var waktu = String(data.waktu);
-  if (["Pagi", "Siang", "Malam"].indexOf(waktu) === -1) {
-    throw new Error("Waktu absensi tidak valid.");
+  data.status = matchedStatus;
+
+  var waktuNorm = String(data.waktu).trim().toLowerCase();
+  var validWaktu = {
+    "pagi": "Pagi",
+    "siang": "Siang",
+    "malam": "Malam"
+  };
+  var matchedWaktu = validWaktu[waktuNorm];
+  if (!matchedWaktu) {
+    throw new Error("Waktu absensi tidak valid: " + data.waktu);
   }
+  data.waktu = matchedWaktu;
 }
 
 function addAbsensi(data) {
@@ -713,8 +731,7 @@ function addAbsensi(data) {
   var cfg = getSheetConfig("ABSENSI");
   var id = generateId(cfg);
   var nama = getNamaAnggota(data.idAnggota);
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var row = [
     id,
     String(data.idAnggota),
@@ -746,8 +763,7 @@ function updateAbsensi(data) {
   var rowIndex = findRowIndex(cfg, data.id);
   if (rowIndex === -1) throw new Error("Absensi tidak ditemukan.");
   var nama = getNamaAnggota(data.idAnggota);
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var row = [
     data.id,
     String(data.idAnggota),
@@ -777,8 +793,8 @@ function deleteAbsensi(data) {
   var cfg = getSheetConfig("ABSENSI");
   var rowIndex = findRowIndex(cfg, data.id);
   if (rowIndex === -1) throw new Error("Absensi tidak ditemukan.");
-  var ss = getSpreadsheet();
-  ss.getSheetByName(cfg.name).deleteRow(rowIndex);
+  var sheet = getOrCreateSheet(cfg);
+  sheet.deleteRow(rowIndex);
   return { message: "Data berhasil dihapus." };
 }
 
@@ -789,8 +805,7 @@ function deleteAbsensi(data) {
 function saveAbsensiBatch(items) {
   if (!Array.isArray(items) || items.length === 0) throw new Error("Data absensi kosong.");
   var cfg = getSheetConfig("ABSENSI");
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
 
   // Peta nama anggota dibaca sekali saja (bukan per baris).
   var namaByAnggota = {};
@@ -850,8 +865,7 @@ function saveAbsensiBatch(items) {
 function updateAbsensiBatch(items) {
   if (!Array.isArray(items) || items.length === 0) throw new Error("Data absensi kosong.");
   var cfg = getSheetConfig("ABSENSI");
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
   if (lastRow < 1) throw new Error("Tidak ada data absensi.");
 
@@ -905,8 +919,7 @@ function updateAbsensiBatch(items) {
 function deleteAbsensiBatch(ids) {
   if (!Array.isArray(ids) || ids.length === 0) throw new Error("Data absensi kosong.");
   var cfg = getSheetConfig("ABSENSI");
-  var ss = getSpreadsheet();
-  var sheet = ss.getSheetByName(cfg.name);
+  var sheet = getOrCreateSheet(cfg);
   var lastRow = sheet.getLastRow();
   var lastCol = sheet.getLastColumn();
   if (lastRow < 2 || lastCol < 1) return { message: "Sheet kosong.", jumlah: 0 };
