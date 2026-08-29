@@ -1122,7 +1122,7 @@ async function drawCandidateSummaryWithPhoto(
     drawPhotoPlaceholder(doc, photoX, photoY, photoW, photoH);
   }
 
-  return startY + boxH + 6.5;
+  return startY + boxH + 4.5;
 }
 
 function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
@@ -1133,9 +1133,9 @@ function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
   const boxW = usable;
   const boxH = 46; // Tinggi proporsional untuk area penilaian + tanda tangan
 
-  let boxY = pageH - MARGIN_BOTTOM - boxH - 2;
-  if (startY + 4 > boxY) {
-    boxY = startY + 4;
+  let boxY = startY + 4;
+  if (boxY + boxH > pageH - MARGIN_BOTTOM - 2) {
+    boxY = pageH - MARGIN_BOTTOM - boxH - 2;
   }
 
   // Background terang & border tipis
@@ -1315,7 +1315,7 @@ async function renderCandidateSheet(
     startY: startY,
     head: [["No", "Pertanyaan / Dokumen Formulir", "Jawaban Calon Anggota"]],
     body: rows,
-    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 54 }, // Sisakan ruang untuk kotak keputusan di bawah
+    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 20 },
     styles: {
       font: fontFamily,
       fontSize: 9.2,
@@ -1340,8 +1340,8 @@ async function renderCandidateSheet(
     rowPageBreak: "avoid",
   });
 
-  const finalY = (doc as any).lastAutoTable?.finalY ?? startY + 40;
-  drawSelectionDecisionBox(doc, finalY);
+  const finalY = (doc as any).lastAutoTable?.finalY ?? (startY + 40);
+  drawSelectionDecisionBox(doc, finalY + 4);
 }
 
 // ============================================================
