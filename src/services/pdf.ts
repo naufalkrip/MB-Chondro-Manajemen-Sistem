@@ -16,6 +16,7 @@ import {
   hitungSaldo,
   hitungStatKehadiran,
   statusKeHuruf,
+  formatNomorHp,
 } from "../utils/format";
 import logoUrl from "../aset/logo.png";
 import poppinsRegular from "../aset/fonts/Poppins-Regular.ttf";
@@ -1053,18 +1054,18 @@ async function drawCandidateSummaryWithPhoto(
 ): Promise<number> {
   const w = doc.internal.pageSize.getWidth();
   const leftX = MARGIN;
-  const photoW = 32;
-  const photoH = 42;
+  const photoW = 36;
+  const photoH = 48;
   const photoMarginRight = MARGIN;
   const photoX = w - photoMarginRight - photoW;
-  const summaryW = photoX - leftX - 5;
-  const boxH = Math.max(photoH, items.length * 9.5 + 4);
+  const summaryW = photoX - leftX - 6;
+  const boxH = Math.max(photoH, items.length * 10.5 + 4);
 
   // 1. Kotak Summary Informasi Calon di Sisi Kiri
-  const itemH = (boxH - (items.length - 1) * 2.5) / items.length;
+  const itemH = (boxH - (items.length - 1) * 2.2) / items.length;
   for (let i = 0; i < items.length; i++) {
     const it = items[i];
-    const iy = startY + i * (itemH + 2.5);
+    const iy = startY + i * (itemH + 2.2);
 
     doc.setFillColor(...ROW_ALT);
     doc.setDrawColor(...LINE);
@@ -1073,20 +1074,20 @@ async function drawCandidateSummaryWithPhoto(
 
     // Aksen merah MB Chondro di sisi kiri item
     doc.setFillColor(...BURGUNDY);
-    doc.roundedRect(leftX, iy + 0.5, 1.3, itemH - 1, 0.6, 0.6, "F");
+    doc.roundedRect(leftX, iy + 0.5, 1.5, itemH - 1, 0.75, 0.75, "F");
 
     // Label
     doc.setFont(fontFamily, "normal");
-    doc.setFontSize(7.5);
+    doc.setFontSize(8.5);
     doc.setTextColor(...SLATE);
-    doc.text(it.label, leftX + 5, iy + itemH / 2 - 1.2);
+    doc.text(it.label, leftX + 6, iy + itemH / 2 - 1.5);
 
     // Value
     doc.setFont(fontFamily, semiboldStyle());
-    doc.setFontSize(8.5);
+    doc.setFontSize(10.5);
     doc.setTextColor(...NAVY);
-    const valText = doc.splitTextToSize(it.value, summaryW - 12)[0] || it.value;
-    doc.text(valText, leftX + 5, iy + itemH / 2 + 3.2);
+    const valText = doc.splitTextToSize(it.value, summaryW - 14)[0] || it.value;
+    doc.text(valText, leftX + 6, iy + itemH / 2 + 3.4);
   }
 
   // 2. Kotak Pas Foto Calon Anggota di Sisi Kanan
@@ -1106,14 +1107,14 @@ async function drawCandidateSummaryWithPhoto(
 
       // Frame Border Foto
       doc.setDrawColor(...BURGUNDY);
-      doc.setLineWidth(0.35);
+      doc.setLineWidth(0.4);
       doc.rect(photoX, photoY, photoW, photoH, "D");
 
       // Keterangan di bawah foto
       doc.setFont(fontFamily, "normal");
-      doc.setFontSize(6.5);
+      doc.setFontSize(7.5);
       doc.setTextColor(...SLATE);
-      doc.text("Foto Calon Anggota", photoX + photoW / 2, photoY + photoH + 3.2, { align: "center" });
+      doc.text("Foto Calon Anggota", photoX + photoW / 2, photoY + photoH + 3.5, { align: "center" });
     } catch {
       drawPhotoPlaceholder(doc, photoX, photoY, photoW, photoH);
     }
@@ -1121,7 +1122,7 @@ async function drawCandidateSummaryWithPhoto(
     drawPhotoPlaceholder(doc, photoX, photoY, photoW, photoH);
   }
 
-  return startY + boxH + 6;
+  return startY + boxH + 6.5;
 }
 
 function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
@@ -1130,11 +1131,11 @@ function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
   const usable = w - MARGIN * 2;
   const boxX = MARGIN;
   const boxW = usable;
-  const boxH = 42; // Tinggi proporsional untuk area penilaian + tanda tangan
+  const boxH = 46; // Tinggi proporsional untuk area penilaian + tanda tangan
 
-  let boxY = startY + 3;
-  if (boxY + boxH > pageH - MARGIN_BOTTOM - 2) {
-    boxY = pageH - MARGIN_BOTTOM - boxH - 2;
+  let boxY = pageH - MARGIN_BOTTOM - boxH - 2;
+  if (startY + 4 > boxY) {
+    boxY = startY + 4;
   }
 
   // Background terang & border tipis
@@ -1149,75 +1150,75 @@ function drawSelectionDecisionBox(doc: jsPDF, startY: number): number {
 
   // Judul Box
   doc.setFont(fontFamily, "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.setTextColor(...NAVY);
-  doc.text("HASIL PENILAIAN & KEPUTUSAN SELEKSI CALON ANGGOTA", boxX + 5, boxY + 5.2);
+  doc.text("HASIL PENILAIAN & KEPUTUSAN SELEKSI CALON ANGGOTA", boxX + 6, boxY + 5.8);
 
   // Garis tipis pembatas
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.15);
-  doc.line(boxX + 5, boxY + 7.2, boxX + boxW - 5, boxY + 7.2);
+  doc.line(boxX + 6, boxY + 8, boxX + boxW - 6, boxY + 8);
 
   // Checkbox pilihan: Lolos, Cadangan, Tidak Lolos
-  const checkY = boxY + 13;
-  const cbSize = 4.2;
+  const checkY = boxY + 14.5;
+  const cbSize = 4.5;
 
   // 1. Kotak [ ] Lolos
-  const lolosX = boxX + 6;
+  const lolosX = boxX + 7;
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.35);
-  doc.rect(lolosX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.rect(lolosX, checkY - 3.4, cbSize, cbSize, "D");
   doc.setFont(fontFamily, "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.setTextColor(22, 101, 52); // Green
-  doc.text("LOLOS", lolosX + cbSize + 2.5, checkY);
+  doc.text("LOLOS", lolosX + cbSize + 3, checkY);
 
   // 2. Kotak [ ] Cadangan
-  const cadanganX = boxX + 46;
+  const cadanganX = boxX + 50;
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.35);
-  doc.rect(cadanganX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.rect(cadanganX, checkY - 3.4, cbSize, cbSize, "D");
   doc.setFont(fontFamily, "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.setTextColor(30, 64, 175); // Blue
-  doc.text("CADANGAN", cadanganX + cbSize + 2.5, checkY);
+  doc.text("CADANGAN", cadanganX + cbSize + 3, checkY);
 
   // 3. Kotak [ ] Tidak Lolos
-  const tidakLolosX = boxX + 92;
+  const tidakLolosX = boxX + 100;
   doc.setDrawColor(...NAVY);
   doc.setLineWidth(0.35);
-  doc.rect(tidakLolosX, checkY - 3.2, cbSize, cbSize, "D");
+  doc.rect(tidakLolosX, checkY - 3.4, cbSize, cbSize, "D");
   doc.setFont(fontFamily, "bold");
-  doc.setFontSize(8.5);
+  doc.setFontSize(9.5);
   doc.setTextColor(185, 28, 28); // Red
-  doc.text("TIDAK LOLOS", tidakLolosX + cbSize + 2.5, checkY);
+  doc.text("TIDAK LOLOS", tidakLolosX + cbSize + 3, checkY);
 
   // Area Catatan Penilai
-  const noteY = boxY + 20.5;
+  const noteY = boxY + 22.5;
   doc.setFont(fontFamily, "normal");
-  doc.setFontSize(7.8);
+  doc.setFontSize(8.8);
   doc.setTextColor(...SLATE);
-  doc.text("Catatan Penilai:", boxX + 6, noteY);
+  doc.text("Catatan Penilai:", boxX + 7, noteY);
 
   // Garis catatan tangan (handwritten notes)
   doc.setDrawColor(...LINE);
   doc.setLineWidth(0.2);
-  doc.line(boxX + 26, noteY, boxX + boxW - 55, noteY);
-  doc.line(boxX + 6, noteY + 5.5, boxX + boxW - 55, noteY + 5.5);
-  doc.line(boxX + 6, noteY + 11, boxX + boxW - 55, noteY + 11);
-  doc.line(boxX + 6, noteY + 16.5, boxX + boxW - 55, noteY + 16.5);
+  doc.line(boxX + 30, noteY, boxX + boxW - 60, noteY);
+  doc.line(boxX + 7, noteY + 6, boxX + boxW - 60, noteY + 6);
+  doc.line(boxX + 7, noteY + 12, boxX + boxW - 60, noteY + 12);
+  doc.line(boxX + 7, noteY + 18, boxX + boxW - 60, noteY + 18);
 
   // Blok Tanda Tangan Penguji di Kanan
-  const signX = boxX + boxW - 48;
+  const signX = boxX + boxW - 52;
   doc.setFont(fontFamily, "normal");
-  doc.setFontSize(7.5);
+  doc.setFontSize(8.5);
   doc.setTextColor(...SLATE);
-  doc.text("..................., .................... 2026", signX + 22, noteY - 3.5, { align: "center" });
-  doc.text("Tim Penilai / Penguji MB Chondro,", signX + 22, noteY + 1, { align: "center" });
+  doc.text("..................., .................... 2026", signX + 24, noteY - 3.5, { align: "center" });
+  doc.text("Tim Penilai / Penguji MB Chondro,", signX + 24, noteY + 1.5, { align: "center" });
 
   doc.setFont(fontFamily, "normal");
   doc.setTextColor(...BODY);
-  doc.text("( .................................................... )", signX + 22, noteY + 17, { align: "center" });
+  doc.text("( .................................................... )", signX + 24, noteY + 18, { align: "center" });
 
   return boxY + boxH + 3;
 }
@@ -1234,13 +1235,16 @@ async function renderCandidateSheet(
   const nama =
     submission.answers.find((a) => a.field?.label?.toLowerCase().includes("nama"))?.value ||
     "Calon Anggota";
-  const hp =
+  const rawHp =
     submission.answers.find(
       (a) =>
         a.field?.label?.toLowerCase().includes("hp") ||
         a.field?.label?.toLowerCase().includes("telepon") ||
-        a.field?.label?.toLowerCase().includes("whatsapp")
-    )?.value ?? "-";
+        a.field?.label?.toLowerCase().includes("whatsapp") ||
+        a.field?.label?.toLowerCase().includes("wa") ||
+        a.field?.label?.toLowerCase().includes("kontak")
+    )?.value ?? "";
+  const hp = formatNomorHp(rawHp);
 
   const statusText =
     submission.status === "menunggu"
@@ -1269,22 +1273,41 @@ async function renderCandidateSheet(
     startY
   );
 
-  const rows = submission.answers.map((a, i) => [
-    i + 1,
-    a.field?.label || `Pertanyaan ${i + 1}`,
-    a.field?.fieldType === "image" || a.field?.label?.toLowerCase().includes("foto") || Boolean(a.fileUrl && (a.fileUrl.startsWith("data:image/") || a.fileUrl.includes("drive.google.com")))
-      ? "✓ Pas Foto Resmi Terlampir"
-      : a.field?.fieldType === "file" && a.fileUrl
-      ? a.fileName ?? "Berkas Dokumen Terlampir"
-      : a.field?.fieldType === "checkbox"
-      ? a.value.split(",").filter(Boolean).join(", ")
-      : a.value || "-",
-  ]);
+  const rows = submission.answers.map((a, i) => {
+    const isPhoto =
+      a.field?.fieldType === "image" ||
+      a.field?.label?.toLowerCase().includes("foto") ||
+      Boolean(a.fileUrl && (a.fileUrl.startsWith("data:image/") || a.fileUrl.includes("drive.google.com")));
+
+    const isPhoneField =
+      (a.field?.label || "").toLowerCase().includes("hp") ||
+      (a.field?.label || "").toLowerCase().includes("telepon") ||
+      (a.field?.label || "").toLowerCase().includes("whatsapp") ||
+      (a.field?.label || "").toLowerCase().includes("wa") ||
+      (a.field?.label || "").toLowerCase().includes("kontak");
+
+    let val = a.value || "-";
+    if (isPhoto) {
+      val = "✓ Pas Foto Resmi Terlampir";
+    } else if (a.field?.fieldType === "file" && a.fileUrl) {
+      val = a.fileName ?? "Berkas Dokumen Terlampir";
+    } else if (a.field?.fieldType === "checkbox") {
+      val = a.value.split(",").filter(Boolean).join(", ");
+    } else if (isPhoneField && a.value) {
+      val = formatNomorHp(a.value);
+    }
+
+    return [
+      i + 1,
+      a.field?.label || `Pertanyaan ${i + 1}`,
+      val,
+    ];
+  });
 
   const usableWidth = doc.internal.pageSize.getWidth() - MARGIN * 2;
   const colStyles = buildColumnStyles(
     ["center", "left", "left"],
-    [8, 52, 90],
+    [8, 54, 88],
     usableWidth
   );
 
@@ -1292,25 +1315,25 @@ async function renderCandidateSheet(
     startY: startY,
     head: [["No", "Pertanyaan / Dokumen Formulir", "Jawaban Calon Anggota"]],
     body: rows,
-    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 52 }, // Sisakan ruang untuk kotak keputusan di bawah
+    margin: { left: MARGIN, right: MARGIN, top: 20, bottom: 54 }, // Sisakan ruang untuk kotak keputusan di bawah
     styles: {
       font: fontFamily,
-      fontSize: 8,
-      cellPadding: { top: 2.0, right: 2.2, bottom: 2.0, left: 2.2 },
+      fontSize: 9.2,
+      cellPadding: { top: 3.0, right: 3.0, bottom: 3.0, left: 3.0 },
       textColor: BODY,
       lineColor: LINE,
       lineWidth: 0.15,
       overflow: "linebreak",
       valign: "middle",
-      minCellHeight: 6,
+      minCellHeight: 7.5,
     },
     headStyles: {
       fillColor: BURGUNDY,
       textColor: WHITE,
       fontStyle: semiboldStyle() as "bold" | "italic" | "normal" | "bolditalic",
-      fontSize: 8.2,
+      fontSize: 9.8,
       halign: "center",
-      cellPadding: { top: 2.4, right: 2.2, bottom: 2.4, left: 2.2 },
+      cellPadding: { top: 3.2, right: 3.0, bottom: 3.2, left: 3.0 },
     },
     alternateRowStyles: { fillColor: ROW_ALT },
     columnStyles: colStyles,

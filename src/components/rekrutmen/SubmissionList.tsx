@@ -27,7 +27,13 @@ import type {
   RekrutmenAnswer,
   RekrutmenField,
 } from "../../types";
-import { formatTanggal, formatTanggalPanjang, formatRentangTanggal } from "../../utils/format";
+import {
+  formatTanggal,
+  formatTanggalPanjang,
+  formatRentangTanggal,
+  formatNomorHp,
+  buatLinkWhatsAppCalon,
+} from "../../utils/format";
 import { DataTable } from "../ui/DataTable";
 import type { Column } from "../ui/DataTable";
 import { SearchBar } from "../ui/SearchBar";
@@ -595,14 +601,14 @@ export function SubmissionList({
         (a.field?.label || "").toLowerCase().includes("hp") ||
         (a.field?.label || "").toLowerCase().includes("telepon") ||
         (a.field?.label || "").toLowerCase().includes("whatsapp") ||
-        (a.field?.label || "").toLowerCase().includes("wa")
+        (a.field?.label || "").toLowerCase().includes("wa") ||
+        (a.field?.label || "").toLowerCase().includes("kontak")
     );
-    const hp = hpField?.value?.trim() || "-";
+    const rawHp = hpField?.value?.trim() || "";
+    const hp = formatNomorHp(rawHp);
+    const waUrl = buatLinkWhatsAppCalon(rawHp, nama, form.title);
 
-    const cleanHp = hp.replace(/[^0-9]/g, "");
-    const waUrl = cleanHp ? `https://wa.me/${cleanHp.startsWith("0") ? "62" + cleanHp.slice(1) : cleanHp}` : null;
-
-    return { nama, hp, waUrl };
+    return { nama, rawHp, hp, waUrl };
   };
 
   // Definisi Kolom Tabel yang Rapi dengan Penekanan Pas Foto
@@ -657,22 +663,23 @@ export function SubmissionList({
               <a
                 href={waUrl}
                 target="_blank"
-                rel="noreferrer"
+                rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 style={{
                   display: "inline-flex",
                   alignItems: "center",
                   gap: 5,
                   fontSize: "13px",
-                  color: "#059669",
-                  fontWeight: 600,
+                  color: "#047857",
+                  fontWeight: 700,
                   textDecoration: "none",
-                  padding: "3px 8px",
-                  background: "rgba(16, 185, 129, 0.08)",
+                  padding: "4px 9px",
+                  background: "rgba(16, 185, 129, 0.12)",
                   borderRadius: 6,
-                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  transition: "all 0.15s ease",
                 }}
-                title="Chat via WhatsApp"
+                title="Klik untuk membuka WhatsApp & kirim pesan skrining otomatis"
               >
                 <MessageCircle size={13} /> {hp}
               </a>
@@ -1082,16 +1089,21 @@ export function SubmissionList({
                             <a
                               href={waUrl}
                               target="_blank"
-                              rel="noreferrer"
+                              rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               style={{
-                                color: "#059669",
-                                fontWeight: 600,
+                                color: "#047857",
+                                fontWeight: 700,
                                 textDecoration: "none",
                                 display: "inline-flex",
                                 alignItems: "center",
                                 gap: 4,
+                                padding: "2px 7px",
+                                borderRadius: 5,
+                                background: "rgba(16, 185, 129, 0.1)",
+                                border: "1px solid rgba(16, 185, 129, 0.25)",
                               }}
+                              title="Klik untuk membuka WhatsApp & kirim pesan skrining"
                             >
                               <MessageCircle size={13} /> {hp}
                             </a>
@@ -1309,24 +1321,29 @@ export function SubmissionList({
                       <span>Terdaftar: <strong>{formatTanggalPanjang(detailOpen.submittedAt)}</strong></span>
                     </div>
 
-                    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
                       <Phone size={14} style={{ color: "var(--text-muted)" }} />
                       <span>WhatsApp / HP:</span>
                       {waUrl ? (
                         <a
                           href={waUrl}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           style={{
-                            color: "#059669",
+                            color: "#047857",
                             fontWeight: 700,
                             textDecoration: "none",
                             display: "inline-flex",
                             alignItems: "center",
-                            gap: 4,
+                            gap: 5,
+                            padding: "3px 9px",
+                            borderRadius: 6,
+                            background: "rgba(16, 185, 129, 0.12)",
+                            border: "1px solid rgba(16, 185, 129, 0.3)",
                           }}
+                          title="Klik untuk chat WhatsApp dan kirim undangan skrining"
                         >
-                          <MessageCircle size={13} /> {hp} (Hubungi)
+                          <MessageCircle size={14} /> {hp} (Hubungi & Kirim Jadwal Skrining)
                         </a>
                       ) : (
                         <strong>{hp}</strong>
@@ -1491,6 +1508,47 @@ export function SubmissionList({
                                   <Check size={12} style={{ color: "#16a34a" }} /> {v.trim()}
                                 </span>
                               ))}
+                            </div>
+                          );
+                        }
+
+                        const isPhoneAnswer =
+                          (ans.field?.label || "").toLowerCase().includes("hp") ||
+                          (ans.field?.label || "").toLowerCase().includes("telepon") ||
+                          (ans.field?.label || "").toLowerCase().includes("whatsapp") ||
+                          (ans.field?.label || "").toLowerCase().includes("wa") ||
+                          (ans.field?.label || "").toLowerCase().includes("kontak");
+
+                        if (isPhoneAnswer && ans.value) {
+                          const formattedVal = formatNomorHp(ans.value);
+                          const directWa = buatLinkWhatsAppCalon(ans.value, nama, form.title);
+                          return (
+                            <div style={{ display: "flex", alignItems: "center", gap: 10, marginTop: 4, flexWrap: "wrap" }}>
+                              <strong style={{ fontSize: "14px", color: "var(--navy-900)" }}>
+                                {formattedVal}
+                              </strong>
+                              {directWa && (
+                                <a
+                                  href={directWa}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    fontSize: "12px",
+                                    fontWeight: 600,
+                                    color: "#047857",
+                                    textDecoration: "none",
+                                    padding: "3px 8px",
+                                    borderRadius: 6,
+                                    background: "rgba(16, 185, 129, 0.1)",
+                                    border: "1px solid rgba(16, 185, 129, 0.25)",
+                                  }}
+                                >
+                                  <MessageCircle size={12} /> Chat via WhatsApp
+                                </a>
+                              )}
                             </div>
                           );
                         }

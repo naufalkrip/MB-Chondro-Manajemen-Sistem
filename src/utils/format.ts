@@ -364,3 +364,80 @@ export function normTransaksi(raw: Record<string, unknown>): Transaksi {
     penanggungJawab: String(raw.PenanggungJawab ?? raw.penanggungJawab ?? ""),
   };
 }
+
+/**
+ * Format nomor HP/WhatsApp Indonesia menjadi format standar lengkap berawalan 0 (contoh: 085123456789).
+ * Menangani kasus 0 hilang (856123456789), awalan 62 (62856123456789), atau awalan +62.
+ */
+export function formatNomorHp(nomor: string | number | null | undefined): string {
+  if (nomor === null || nomor === undefined) return "-";
+  const raw = String(nomor).trim();
+  if (!raw || raw === "-") return "-";
+
+  // Bersihkan karakter non-angka kecuali tanda +
+  let digits = raw.replace(/[^0-9+]/g, "");
+
+  if (digits.startsWith("+62")) {
+    digits = "0" + digits.slice(3);
+  } else if (digits.startsWith("62")) {
+    digits = "0" + digits.slice(2);
+  } else if (digits.startsWith("8")) {
+    digits = "0" + digits;
+  }
+
+  return digits || raw;
+}
+
+/**
+ * Format nomor WhatsApp ke format internasional (628...) yang siap untuk tautan wa.me
+ */
+export function formatNomorWhatsAppUrl(nomor: string | number | null | undefined): string | null {
+  if (nomor === null || nomor === undefined) return null;
+  const raw = String(nomor).trim();
+  if (!raw || raw === "-") return null;
+
+  let digits = raw.replace(/[^0-9]/g, "");
+  if (!digits) return null;
+
+  if (digits.startsWith("0")) {
+    digits = "62" + digits.slice(1);
+  } else if (digits.startsWith("8")) {
+    digits = "62" + digits;
+  } else if (!digits.startsWith("62")) {
+    digits = "62" + digits;
+  }
+
+  return digits;
+}
+
+/**
+ * Membuat pesan template otomatis sapaan & jadwal skrining calon anggota MB Chondro
+ */
+export function buatPesanWhatsAppCalon(nama: string, judulFormulir?: string): string {
+  const cleanName = (nama || "Calon Anggota").trim();
+  const context = judulFormulir ? ` (${judulFormulir})` : "";
+
+  return (
+    `Halo kak ${cleanName},\n\n` +
+    `Terima kasih sudah melakukan pengisian formulir pendaftaran calon anggota MB Chondro${context}.\n\n` +
+    `Kami menginformasikan bahwa akan ada tahapan skrining lanjutan / audisi calon anggota yang akan dilaksanakan pada:\n\n` +
+    `Tanggal & Waktu : \n` +
+    `Tempat : \n\n` +
+    `Mohon untuk mempersiapkan diri dan hadir tepat waktu. Silakan membalas pesan ini untuk konfirmasi kehadiran ya kak. Terima kasih! 🙏`
+  );
+}
+
+/**
+ * Membuat link tautan langsung ke WhatsApp dengan pre-filled text pesan skrining
+ */
+export function buatLinkWhatsAppCalon(
+  nomor: string | number | null | undefined,
+  nama: string,
+  judulFormulir?: string
+): string | null {
+  const cleanNumber = formatNomorWhatsAppUrl(nomor);
+  if (!cleanNumber) return null;
+
+  const pesan = buatPesanWhatsAppCalon(nama, judulFormulir);
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(pesan)}`;
+}

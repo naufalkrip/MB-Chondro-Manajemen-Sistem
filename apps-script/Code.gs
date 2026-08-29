@@ -1888,11 +1888,19 @@ function addRekrutmenSubmission(data) {
         }
       }
 
+      var rawVal = String(item.value || "").trim();
+      // Jika nomor telepon / WhatsApp berawalan 0 atau format angka panjang, pastikan tersimpan sebagai teks agar angka 0 tidak hilang
+      if (/^08\d{7,13}$/.test(rawVal) || /^\+?628\d{7,13}$/.test(rawVal)) {
+        if (rawVal.indexOf("'") !== 0) {
+          rawVal = "'" + rawVal;
+        }
+      }
+
       var ansObj = {
         id: ansId,
         submissionId: subId,
         fieldId: String(item.fieldId || ""),
-        value: String(item.value || ""),
+        value: rawVal,
         fileUrl: fileUrl,
         fileName: String(item.fileName || ""),
         fileType: String(item.fileType || ""),
