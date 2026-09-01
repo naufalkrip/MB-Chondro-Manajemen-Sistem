@@ -19,6 +19,8 @@ import {
   Sparkles,
   MessageCircle,
   RotateCw,
+  Copy,
+  Send,
 } from "lucide-react";
 import type {
   RekrutmenSubmissionWithAnswers,
@@ -33,6 +35,8 @@ import {
   formatRentangTanggal,
   formatNomorHp,
   buatLinkWhatsAppCalon,
+  buatPesanWhatsAppLolos,
+  buatLinkWhatsAppLolos,
 } from "../../utils/format";
 import { DataTable } from "../ui/DataTable";
 import type { Column } from "../ui/DataTable";
@@ -329,6 +333,7 @@ export function SubmissionList({
   const [selectedStatus, setSelectedStatus] = useState<RekrutmenSubmissionStatus>("menunggu");
   const [adminNote, setAdminNote] = useState("");
   const [savingStatus, setSavingStatus] = useState(false);
+  const [sendWaOnLolosSave, setSendWaOnLolosSave] = useState(true);
 
   // Lightbox Image
   const [lightboxImage, setLightboxImage] = useState<{ url: string; title: string; fileName?: string } | null>(null);
@@ -417,21 +422,43 @@ export function SubmissionList({
     return { dari: undefined, sampai: undefined, label: "Semua Periode" };
   }, [pdfMode, pdfSelectedBulan, pdfSelectedTahun, pdfDari, pdfSampai]);
 
+  const copyToClipboard = async (text: string, label = "Teks") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toastSuccess(`${label} berhasil disalin ke clipboard!`);
+    } catch {
+      toastError(`Gagal menyalin ${label.toLowerCase()}.`);
+    }
+  };
+
   const openStatusChange = (s: RekrutmenSubmissionWithAnswers) => {
     setStatusModalSub(s);
     setSelectedStatus(s.status);
     setAdminNote(s.adminNote || "");
+    setSendWaOnLolosSave(true);
   };
 
   const handleStatusSave = async () => {
     if (!statusModalSub) return;
+    const isPassing = selectedStatus === "lolos";
+    const subTarget = statusModalSub;
     setSavingStatus(true);
-    const ok = await onUpdateStatus(statusModalSub.id, selectedStatus, adminNote);
+    const ok = await onUpdateStatus(subTarget.id, selectedStatus, adminNote);
     setSavingStatus(false);
     if (ok) {
       toastSuccess("Status calon anggota berhasil diperbarui.");
+
+      // Jika status lolos dan opsi kirim WA aktif, buka tautan WhatsApp otomatis
+      if (isPassing && sendWaOnLolosSave) {
+        const { nama, rawHp } = getCandidateInfo(subTarget);
+        const waUrl = buatLinkWhatsAppLolos(rawHp, nama, form.title, adminNote);
+        if (waUrl) {
+          window.open(waUrl, "_blank", "noopener,noreferrer");
+        }
+      }
+
       setStatusModalSub(null);
-      if (detailOpen && detailOpen.id === statusModalSub.id) {
+      if (detailOpen && detailOpen.id === subTarget.id) {
         setDetailOpen({ ...detailOpen, status: selectedStatus, adminNote });
       }
       await onRefresh();
@@ -606,9 +633,12 @@ export function SubmissionList({
     );
     const rawHp = hpField?.value?.trim() || "";
     const hp = formatNomorHp(rawHp);
+    const noteForMsg = s.adminNote || (statusModalSub?.id === s.id ? adminNote : undefined);
     const waUrl = buatLinkWhatsAppCalon(rawHp, nama, form.title);
+    const waLolosUrl = buatLinkWhatsAppLolos(rawHp, nama, form.title, noteForMsg);
+    const pesanLolos = buatPesanWhatsAppLolos(nama, form.title, noteForMsg);
 
-    return { nama, rawHp, hp, waUrl };
+    return { nama, rawHp, hp, waUrl, waLolosUrl, pesanLolos };
   };
 
   // Definisi Kolom Tabel yang Rapi dengan Penekanan Pas Foto
@@ -656,12 +686,14 @@ export function SubmissionList({
       key: "hp",
       header: "Kontak WhatsApp",
       render: (s) => {
-        const { hp, waUrl } = getCandidateInfo(s);
+        const { hp, waUrl, waLolosUrl } = getCandidateInfo(s);
+        const isLolos = s.status === "lolos";
+        const targetUrl = isLolos ? (waLolosUrl || waUrl) : waUrl;
         return (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-            {waUrl ? (
+            {targetUrl ? (
               <a
-                href={waUrl}
+                href={targetUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
@@ -670,18 +702,36 @@ export function SubmissionList({
                   alignItems: "center",
                   gap: 5,
                   fontSize: "13px",
-                  color: "#047857",
+                  color: isLolos ? "#065f46" : "#047857",
                   fontWeight: 700,
                   textDecoration: "none",
                   padding: "4px 9px",
-                  background: "rgba(16, 185, 129, 0.12)",
+                  background: isLolos ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.12)",
                   borderRadius: 6,
-                  border: "1px solid rgba(16, 185, 129, 0.3)",
+                  border: isLolos ? "1px solid rgba(16, 185, 129, 0.45)" : "1px solid rgba(16, 185, 129, 0.3)",
                   transition: "all 0.15s ease",
                 }}
-                title="Klik untuk membuka WhatsApp & kirim pesan skrining otomatis"
+                title={
+                  isLolos
+                    ? "Klik untuk membuka WhatsApp & kirim pengumuman lolos (Ketentuan Training 3x Penampilan)"
+                    : "Klik untuk membuka WhatsApp & kirim pesan skrining otomatis"
+                }
               >
                 <MessageCircle size={13} /> {hp}
+                {isLolos && (
+                  <span
+                    style={{
+                      fontSize: "10px",
+                      background: "#059669",
+                      color: "#ffffff",
+                      padding: "1px 5px",
+                      borderRadius: 4,
+                      fontWeight: 700,
+                    }}
+                  >
+                    Lolos WA
+                  </span>
+                )}
               </a>
             ) : (
               <span style={{ fontSize: "13px", color: "#64748b" }}>{hp}</span>
@@ -758,6 +808,19 @@ export function SubmissionList({
           >
             <Check size={16} />
           </button>
+          {s.status === "lolos" && (
+            <a
+              href={getCandidateInfo(s).waLolosUrl || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="btn btn-ghost btn-sm"
+              title="Kirim Pengumuman Lolos via WhatsApp (Training 3x Penampilan)"
+              style={{ padding: "6px", color: "#059669" }}
+            >
+              <MessageCircle size={16} />
+            </a>
+          )}
           <button
             type="button"
             className="btn btn-ghost btn-sm"
@@ -994,7 +1057,7 @@ export function SubmissionList({
                 }}
               >
                 {filtered.map((s) => {
-                  const { nama, hp, waUrl } = getCandidateInfo(s);
+                  const { nama, hp, waUrl, waLolosUrl } = getCandidateInfo(s);
                   const conf = STATUS_CONFIG[s.status] || STATUS_CONFIG.menunggu;
                   const Icon = conf.icon;
 
@@ -1085,31 +1148,41 @@ export function SubmissionList({
                       <div style={{ padding: "12px 16px", flex: 1, display: "flex", flexDirection: "column", gap: 8 }}>
                         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "12.5px" }}>
                           <span style={{ color: "var(--text-muted)" }}>Kontak HP/WA:</span>
-                          {waUrl ? (
-                            <a
-                              href={waUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              style={{
-                                color: "#047857",
-                                fontWeight: 700,
-                                textDecoration: "none",
-                                display: "inline-flex",
-                                alignItems: "center",
-                                gap: 4,
-                                padding: "2px 7px",
-                                borderRadius: 5,
-                                background: "rgba(16, 185, 129, 0.1)",
-                                border: "1px solid rgba(16, 185, 129, 0.25)",
-                              }}
-                              title="Klik untuk membuka WhatsApp & kirim pesan skrining"
-                            >
-                              <MessageCircle size={13} /> {hp}
-                            </a>
-                          ) : (
-                            <span style={{ fontWeight: 600, color: "#475569" }}>{hp}</span>
-                          )}
+                          {(() => {
+                            const isLolos = s.status === "lolos";
+                            const targetWa = isLolos ? (waLolosUrl || waUrl) : waUrl;
+                            if (targetWa) {
+                              return (
+                                <a
+                                  href={targetWa}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  style={{
+                                    color: isLolos ? "#065f46" : "#047857",
+                                    fontWeight: 700,
+                                    textDecoration: "none",
+                                    display: "inline-flex",
+                                    alignItems: "center",
+                                    gap: 4,
+                                    padding: "2px 7px",
+                                    borderRadius: 5,
+                                    background: isLolos ? "rgba(16, 185, 129, 0.18)" : "rgba(16, 185, 129, 0.1)",
+                                    border: isLolos ? "1px solid rgba(16, 185, 129, 0.45)" : "1px solid rgba(16, 185, 129, 0.25)",
+                                  }}
+                                  title={isLolos ? "Klik untuk kirim pengumuman lolos (Training 3x Penampilan)" : "Klik untuk membuka WhatsApp & kirim pesan skrining"}
+                                >
+                                  <MessageCircle size={13} /> {hp}
+                                  {isLolos && (
+                                    <span style={{ fontSize: "9.5px", background: "#059669", color: "#fff", padding: "0 4px", borderRadius: 3, marginLeft: 2 }}>
+                                      Lolos WA
+                                    </span>
+                                  )}
+                                </a>
+                              );
+                            }
+                            return <span style={{ fontWeight: 600, color: "#475569" }}>{hp}</span>;
+                          })()}
                         </div>
 
                         {s.adminNote && (
@@ -1150,6 +1223,18 @@ export function SubmissionList({
                         </button>
 
                         <div style={{ display: "flex", gap: 4 }}>
+                          {s.status === "lolos" && waLolosUrl && (
+                            <a
+                              href={waLolosUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="btn btn-ghost btn-sm"
+                              title="Kirim Pengumuman Lolos via WA"
+                              style={{ color: "#059669", padding: "5px 8px" }}
+                            >
+                              <MessageCircle size={14} />
+                            </a>
+                          )}
                           <button
                             type="button"
                             className="btn btn-ghost btn-sm"
@@ -1215,7 +1300,7 @@ export function SubmissionList({
         }
       >
         {detailOpen && (() => {
-          const { nama, hp, waUrl } = getCandidateInfo(detailOpen);
+          const { nama, hp, waUrl, waLolosUrl, pesanLolos } = getCandidateInfo(detailOpen);
           const conf = STATUS_CONFIG[detailOpen.status] || STATUS_CONFIG.menunggu;
           const Icon = conf.icon;
           const photoInfo = extractCandidatePhotoInfo(detailOpen.answers);
@@ -1325,26 +1410,66 @@ export function SubmissionList({
                       <Phone size={14} style={{ color: "var(--text-muted)" }} />
                       <span>WhatsApp / HP:</span>
                       {waUrl ? (
-                        <a
-                          href={waUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            color: "#047857",
-                            fontWeight: 700,
-                            textDecoration: "none",
-                            display: "inline-flex",
-                            alignItems: "center",
-                            gap: 5,
-                            padding: "3px 9px",
-                            borderRadius: 6,
-                            background: "rgba(16, 185, 129, 0.12)",
-                            border: "1px solid rgba(16, 185, 129, 0.3)",
-                          }}
-                          title="Klik untuk chat WhatsApp dan kirim undangan skrining"
-                        >
-                          <MessageCircle size={14} /> {hp} (Hubungi & Kirim Jadwal Skrining)
-                        </a>
+                        <div style={{ display: "inline-flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                          {detailOpen.status === "lolos" ? (
+                            <>
+                              <a
+                                href={waLolosUrl || waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: "#065f46",
+                                  fontWeight: 700,
+                                  textDecoration: "none",
+                                  display: "inline-flex",
+                                  alignItems: "center",
+                                  gap: 5,
+                                  padding: "3px 9px",
+                                  borderRadius: 6,
+                                  background: "rgba(16, 185, 129, 0.18)",
+                                  border: "1px solid rgba(16, 185, 129, 0.4)",
+                                }}
+                                title="Klik untuk membuka WhatsApp & kirim pengumuman lolos (Ketentuan Training 3x Penampilan)"
+                              >
+                                <MessageCircle size={14} /> {hp} (Kirim Pengumuman Lolos WA)
+                              </a>
+                              <a
+                                href={waUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  color: "#475569",
+                                  fontSize: "12px",
+                                  textDecoration: "underline",
+                                }}
+                                title="Kirim format pesan skrining / umum"
+                              >
+                                Pesan Skrining
+                              </a>
+                            </>
+                          ) : (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                color: "#047857",
+                                fontWeight: 700,
+                                textDecoration: "none",
+                                display: "inline-flex",
+                                alignItems: "center",
+                                gap: 5,
+                                padding: "3px 9px",
+                                borderRadius: 6,
+                                background: "rgba(16, 185, 129, 0.12)",
+                                border: "1px solid rgba(16, 185, 129, 0.3)",
+                              }}
+                              title="Klik untuk chat WhatsApp dan kirim undangan skrining"
+                            >
+                              <MessageCircle size={14} /> {hp} (Hubungi & Kirim Jadwal Skrining)
+                            </a>
+                          )}
+                        </div>
                       ) : (
                         <strong>{hp}</strong>
                       )}
@@ -1352,6 +1477,66 @@ export function SubmissionList({
                   </div>
                 </div>
               </div>
+
+              {/* Lolos Announcement Banner */}
+              {detailOpen.status === "lolos" && (
+                <div
+                  style={{
+                    padding: "12px 16px",
+                    background: "linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(5, 150, 105, 0.05) 100%)",
+                    borderRadius: 8,
+                    border: "1px solid rgba(16, 185, 129, 0.38)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    flexWrap: "wrap",
+                    gap: 10,
+                  }}
+                >
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, fontWeight: 700, fontSize: "13.5px", color: "#065f46" }}>
+                      <CheckCircle size={16} style={{ color: "#059669" }} />
+                      <span>Calon Anggota Lolos Seleksi Chondro Wonopringgo</span>
+                    </div>
+                    <span style={{ fontSize: "12px", color: "#047857", display: "block", marginTop: 2 }}>
+                      Ketentuan resmi: Wajib mengikuti proses training &amp; berpartisipasi dalam 3x penampilan Chondro Wonopringgo.
+                    </span>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 6 }}>
+                    <button
+                      type="button"
+                      className="btn btn-ghost btn-sm"
+                      onClick={() => copyToClipboard(pesanLolos, "Format Pesan Kelolosan")}
+                      style={{ fontSize: "11.5px", padding: "4px 9px", background: "#ffffff", border: "1px solid #a7f3d0", color: "#065f46" }}
+                    >
+                      <Copy size={12} /> Salin Pesan
+                    </button>
+                    {waLolosUrl && (
+                      <a
+                        href={waLolosUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn btn-sm"
+                        style={{
+                          fontSize: "12px",
+                          padding: "5px 12px",
+                          background: "#059669",
+                          color: "#ffffff",
+                          textDecoration: "none",
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 5,
+                          borderRadius: 6,
+                          fontWeight: 600,
+                        }}
+                      >
+                        <Send size={13} /> Kirim Pengumuman Lolos via WA
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {/* Admin Note Banner */}
               {detailOpen.adminNote && (
@@ -1641,6 +1826,153 @@ export function SubmissionList({
                   style={{ padding: "8px 12px", fontSize: "13px", resize: "vertical" }}
                 />
               </div>
+
+              {/* OPSI & PRATINJAU PENGUMUMAN WHATSAPP UNTUK STATUS LOLOS */}
+              {selectedStatus === "lolos" && (() => {
+                const { hp, waLolosUrl, pesanLolos } = getCandidateInfo(statusModalSub);
+                return (
+                  <div
+                    style={{
+                      padding: "14px",
+                      borderRadius: "10px",
+                      background: "linear-gradient(135deg, rgba(16, 185, 129, 0.08) 0%, rgba(5, 150, 105, 0.04) 100%)",
+                      border: "1px solid rgba(16, 185, 129, 0.35)",
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 10,
+                    }}
+                  >
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: "50%",
+                            background: "#10b981",
+                            color: "#ffffff",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            flexShrink: 0,
+                          }}
+                        >
+                          <MessageCircle size={16} />
+                        </div>
+                        <div>
+                          <strong style={{ fontSize: "13px", color: "#065f46", display: "block" }}>
+                            Opsi Pengumuman Lolos via WhatsApp
+                          </strong>
+                          <span style={{ fontSize: "11.5px", color: "#047857" }}>
+                            Tujuan: {hp || "Nomor belum terdeteksi"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => copyToClipboard(pesanLolos, "Format Pesan Pengumuman Lolos")}
+                          className="btn btn-ghost btn-sm"
+                          style={{
+                            fontSize: "11.5px",
+                            padding: "4px 8px",
+                            background: "#ffffff",
+                            border: "1px solid #d1fae5",
+                            color: "#065f46",
+                          }}
+                          title="Salin teks pesan ke clipboard"
+                        >
+                          <Copy size={12} /> Salin Pesan
+                        </button>
+
+                        {waLolosUrl && (
+                          <a
+                            href={waLolosUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="btn btn-sm"
+                            style={{
+                              fontSize: "11.5px",
+                              padding: "4px 9px",
+                              background: "#059669",
+                              color: "#ffffff",
+                              textDecoration: "none",
+                              display: "inline-flex",
+                              alignItems: "center",
+                              gap: 4,
+                              borderRadius: 6,
+                              fontWeight: 600,
+                            }}
+                            title="Buka WhatsApp langsung sekarang"
+                          >
+                            <Send size={12} /> Buka WA
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Ketentuan 3x Penampilan Highlight Tag */}
+                    <div
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 6,
+                        padding: "6px 10px",
+                        background: "rgba(16, 185, 129, 0.12)",
+                        borderRadius: 6,
+                        fontSize: "11.5px",
+                        color: "#065f46",
+                        fontWeight: 600,
+                      }}
+                    >
+                      <Sparkles size={13} style={{ color: "#059669", flexShrink: 0 }} />
+                      <span>Ketentuan: Wajib mengikuti proses training &amp; 3x penampilan Chondro Wonopringgo</span>
+                    </div>
+
+                    {/* Checkbox Auto-Open WA */}
+                    <label
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 8,
+                        fontSize: "12.5px",
+                        color: "#064e3b",
+                        fontWeight: 600,
+                        cursor: "pointer",
+                        userSelect: "none",
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={sendWaOnLolosSave}
+                        onChange={(e) => setSendWaOnLolosSave(e.target.checked)}
+                        style={{ cursor: "pointer", accentColor: "#059669", width: 16, height: 16 }}
+                      />
+                      Buka WhatsApp otomatis untuk kirim pengumuman setelah tombol simpan diklik
+                    </label>
+
+                    {/* Preview Box */}
+                    <div
+                      style={{
+                        background: "#ffffff",
+                        border: "1px solid #d1fae5",
+                        borderRadius: 6,
+                        padding: "8px 10px",
+                        fontSize: "11.5px",
+                        color: "#1e293b",
+                        lineHeight: 1.45,
+                        maxHeight: "110px",
+                        overflowY: "auto",
+                        whiteSpace: "pre-wrap",
+                        fontFamily: "inherit",
+                      }}
+                    >
+                      {pesanLolos}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
           );
         })()}

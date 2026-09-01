@@ -419,7 +419,7 @@ export function buatPesanWhatsAppCalon(nama: string, judulFormulir?: string): st
 
   return (
     `Halo kak ${cleanName},\n\n` +
-    `Terima kasih sudah melakukan pengisian formulir pendaftaran calon anggota MB Chondro${context}.\n\n` +
+    `Terima kasih sudah melakukan pengisian formulir pendaftaran calon anggota Chondro Wonopringgo${context}.\n\n` +
     `Kami menginformasikan bahwa akan ada tahapan skrining lanjutan / audisi calon anggota yang akan dilaksanakan pada:\n\n` +
     `Tanggal & Waktu : \n` +
     `Tempat : \n\n` +
@@ -439,5 +439,51 @@ export function buatLinkWhatsAppCalon(
   if (!cleanNumber) return null;
 
   const pesan = buatPesanWhatsAppCalon(nama, judulFormulir);
+  return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(pesan)}`;
+}
+
+/**
+ * Membuat template pesan WhatsApp pengumuman kelolosan seleksi calon anggota Chondro Wonopringgo.
+ * Sesuai ketentuan:
+ * 1. Tercantum nama calon anggota
+ * 2. Tercantum informasi proses training dengan kewajiban mengikuti 3 (tiga) kali penampilan
+ */
+export function buatPesanWhatsAppLolos(
+  nama: string,
+  judulFormulir?: string,
+  catatanKhusus?: string
+): string {
+  const cleanName = (nama || "Calon Anggota").trim();
+  const context = judulFormulir ? ` (${judulFormulir})` : "";
+  const noteSection =
+    catatanKhusus && catatanKhusus.trim()
+      ? `\n\n📌 *Catatan Tambahan Reviewer:*\n${catatanKhusus.trim()}`
+      : "";
+
+  return (
+    `Halo kak ${cleanName},\n\n` +
+    `🎉 *SELAMAT!* Berdasarkan hasil seleksi penerimaan calon anggota Chondro Wonopringgo${context}, Anda dinyatakan *LOLOS* sebagai Calon Anggota Chondro Wonopringgo.\n\n` +
+    `📋 *Informasi & Ketentuan Tahap Selanjutnya:*\n` +
+    `1. Anda resmi memasuki masa *Training Calon Anggota* Chondro Wonopringgo.\n` +
+    `2. Selama masa training, Anda diwajibkan untuk *mengikuti 3 (tiga) kali penampilan / performa Chondro Wonopringgo* secara aktif sebagai syarat utama pengukuhan anggota resmi.\n` +
+    `3. Jadwal penampilan serta arahan teknis akan diinformasikan lebih lanjut oleh tim pelatih & kepengurusan.${noteSection}\n\n` +
+    `Mohon membalas pesan ini untuk konfirmasi penerimaan dan kesediaan Anda ya kak.\n\n` +
+    `Selamat bergabung dan semangat berproses bersama keluarga besar Chondro Wonopringgo! 🎺🥁✨`
+  );
+}
+
+/**
+ * Membuat link tautan langsung ke WhatsApp dengan pesan pengumuman kelolosan
+ */
+export function buatLinkWhatsAppLolos(
+  nomor: string | number | null | undefined,
+  nama: string,
+  judulFormulir?: string,
+  catatanKhusus?: string
+): string | null {
+  const cleanNumber = formatNomorWhatsAppUrl(nomor);
+  if (!cleanNumber) return null;
+
+  const pesan = buatPesanWhatsAppLolos(nama, judulFormulir, catatanKhusus);
   return `https://wa.me/${cleanNumber}?text=${encodeURIComponent(pesan)}`;
 }

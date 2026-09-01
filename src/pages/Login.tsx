@@ -158,7 +158,7 @@ export function Login() {
 
         {/* Footer Brand Info */}
         <div className="login-copyright">
-          &copy; {new Date().getFullYear()} Marching Band Chondrodimuko. All rights reserved.
+          &copy; {new Date().getFullYear()} Chondro Wonopringgo. All rights reserved.
         </div>
       </div>
     </div>
